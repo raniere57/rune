@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+
+      # The OMP integration tests skip themselves when the binary is absent,
+      # so they only run where it can actually be installed. They never invoke
+      # a model — the billed test is opt-in behind MENUAGENT_LIVE_MODEL_TEST.
+      - name: Install omp
+        continue-on-error: true
+        run: brew install can1357/tap/omp
+
+      - name: Test
+        run: swift test
+
+      - name: Build app bundle
+        run: ./scripts/build-app.sh release
+
+      # A menu bar app has no window to assert on from outside; --diagnose
+      # builds the real status item and panel and reports their geometry.
+      # It needs a window server, which the runner does not have, so a failure
+      # here is informational rather than fatal.
+      - name: Diagnose
+        continue-on-error: true
+        run: ./build/MenuAgent.app/Contents/MacOS/MenuAgent --diagnose
