@@ -6,14 +6,15 @@ import AppKit
 enum WorkspacePicker {
 	/// Standard open panel restricted to directories.
 	///
-	/// The floating panel is `hidesOnDeactivate`, so it would vanish the moment
-	/// the dialog took focus and the user would be choosing a folder for an app
-	/// that appears to have quit. The flag is suspended for the duration.
-	static func chooseDirectory(startingAt current: URL, host: NSWindow?) -> URL? {
-		let previouslyHid = host?.hidesOnDeactivate ?? false
-		host?.hidesOnDeactivate = false
-		defer { host?.hidesOnDeactivate = previouslyHid }
+	/// The floating panel closes when it stops being key, which is exactly what
+	/// the dialog causes — so auto-dismiss is suspended for the duration and the
+	/// user is not left choosing a folder for an app that appears to have quit.
+	static func chooseDirectory(startingAt current: URL, host: FloatingPanel?) -> URL? {
+		guard let host else { return runOpenPanel(startingAt: current) }
+		return host.keepingVisible { runOpenPanel(startingAt: current) }
+	}
 
+	private static func runOpenPanel(startingAt current: URL) -> URL? {
 		let panel = NSOpenPanel()
 		panel.canChooseDirectories = true
 		panel.canChooseFiles = false
@@ -39,6 +40,7 @@ enum SessionPicker {
 		sessions: [SessionSummary],
 		currentWorkspace: URL,
 		currentSessionPath: String?,
+		host: FloatingPanel?,
 		onNew: @escaping () -> Void,
 		onSelect: @escaping (SessionSummary) -> Void
 	) {
@@ -74,7 +76,12 @@ enum SessionPicker {
 		// Popped at the cursor rather than anchored to a view: the chip lives in
 		// a SwiftUI hierarchy with no stable `NSView` to hand AppKit, and the
 		// pointer is on the chip anyway since the user just clicked it.
-		menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+		// Menu tracking takes key status, so auto-dismiss is suspended too.
+		if let host {
+			host.keepingVisible { menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil) }
+		} else {
+			menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+		}
 	}
 
 	private static func addSection(

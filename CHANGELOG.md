@@ -8,6 +8,36 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
 
 ## [Não publicado]
 
+## [0.6.1] — 2026-08-04
+
+### Corrigido
+
+- **Clicar no ícone da barra de menus não abria o painel logo após o launch** —
+  só o `Control + Option + Espaço` abria, e a partir daí o ícone passava a
+  funcionar. Três causas somadas:
+  - O painel usava `hidesOnDeactivate`, que amarra a visibilidade ao estado de
+    ativação do app. Clicar num `NSStatusItem` **não ativa o app**, então o
+    AppKit ordenava o painel à frente e o escondia no mesmo instante. Agora a
+    dispensa é por perda de foco (`resignKey`), que é o comportamento que um
+    launcher realmente quer e que a classe controla.
+  - `NSApp.activate(ignoringOtherApps:)` está obsoleto e o macOS 14+ costuma
+    recusá-lo quando o pedido vem de um app que não está em primeiro plano — ou
+    seja, todo clique no ícone. Trocado por `NSApp.activate()`.
+  - A ação do ícone rodava dentro do rastreamento de mouse do próprio botão. O
+    atalho global sempre passou pela fila principal antes de agir, e era só por
+    isso que ele funcionava quando o clique não. O clique agora faz o mesmo.
+- O painel passa a ser construído no launch, não no primeiro clique: montar a
+  janela e deixar o SwiftUI fazer o layout custava um frame, pago justamente
+  dentro da primeira interação.
+
+### Alterado
+
+- Os seletores de pasta e de conversa suspendem a auto-dispensa via
+  `FloatingPanel.keepingVisible`, em vez de mexer no `hidesOnDeactivate`.
+- 7 testes novos (116 no total) travando a configuração do painel — o valor de
+  `hidesOnDeactivate` agora falha o build se alguém reativá-lo.
+
+
 ## [0.6.0] — 2026-08-04
 
 ### Alterado
@@ -208,7 +238,8 @@ Primeira versão. GUI nativa mínima para o `omp`, na barra de menus.
   testado; falta rotear para um modelo de visão.
 - Assinatura ad-hoc — o Gatekeeper bloqueia na primeira abertura.
 
-[Não publicado]: https://github.com/raniere57/rune/compare/v0.6.0...HEAD
+[Não publicado]: https://github.com/raniere57/rune/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/raniere57/rune/releases/tag/v0.6.1
 [0.6.0]: https://github.com/raniere57/rune/releases/tag/v0.6.0
 [0.5.0]: https://github.com/raniere57/rune/releases/tag/v0.5.0
 [0.4.1]: https://github.com/raniere57/rune/releases/tag/v0.4.1

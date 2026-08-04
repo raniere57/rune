@@ -62,15 +62,21 @@ public final class StatusItemController {
 	}
 
 	@objc private func handleClick() {
-		guard let event = NSApp.currentEvent else {
-			onToggle?()
+		let event = NSApp.currentEvent
+		let wantsMenu = event?.type == .rightMouseUp
+			|| event?.modifierFlags.contains(.control) == true
+
+		guard !wantsMenu else {
+			showMenu()
 			return
 		}
-		if event.type == .rightMouseUp || event.modifierFlags.contains(.control) {
-			showMenu()
-		} else {
-			onToggle?()
-		}
+
+		// Deferred one run-loop pass: this action fires from inside the status
+		// button's mouse tracking, and presenting a window there races the
+		// activation the panel needs. The global shortcut path always hopped
+		// through the main queue, which is the only reason it appeared to work
+		// when the click did not.
+		DispatchQueue.main.async { [weak self] in self?.onToggle?() }
 	}
 
 	private func showMenu() {

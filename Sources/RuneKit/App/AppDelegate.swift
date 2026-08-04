@@ -42,6 +42,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 			logger.error("global shortcut registration failed; menu bar click still works")
 		}
 
+		// Built now rather than on first use: constructing the window and letting
+		// SwiftUI lay it out costs a frame, and paying that inside the first
+		// click is what made the first click feel dead.
+		_ = ensurePanel()
+
 		observeRunState()
 		logger.info("\(AppConfiguration.appName, privacy: .public) ready")
 	}

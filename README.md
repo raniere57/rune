@@ -494,7 +494,7 @@ constante.
 swift test
 ```
 
-**109 testes, 10 suítes.** Nenhum gasta token.
+**116 testes, 11 suítes.** Nenhum gasta token.
 
 | Suíte | Cobre |
 |---|---|
@@ -646,7 +646,7 @@ pagar nada e sem nenhuma caixa-preta no meio. Open source é lindo mesmo.
 ```bash
 git clone https://github.com/raniere57/rune.git && cd rune
 brew install can1357/tap/omp
-swift test          # 109 testes, nenhum gasta token
+swift test          # 116 testes, nenhum gasta token
 ./scripts/build-app.sh release && open build/Rune.app
 ```
 

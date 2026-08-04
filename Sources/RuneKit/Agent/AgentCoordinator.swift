@@ -215,6 +215,7 @@ public final class AgentCoordinator {
 				sessions: recentSessions,
 				currentWorkspace: workspace.url,
 				currentSessionPath: sessionFile,
+				host: hostWindow,
 				onNew: { [weak self] in
 					guard let self else { return }
 					Task { await self.startNewSession() }
@@ -227,10 +228,10 @@ public final class AgentCoordinator {
 		}
 	}
 
-	/// The floating panel, when it exists — the pickers suspend its
-	/// hide-on-deactivate so it does not vanish behind the dialog.
-	private var hostWindow: NSWindow? {
-		NSApp.windows.first { $0 is FloatingPanel }
+	/// The floating panel, when it exists — the pickers suspend its auto-dismiss
+	/// so it does not vanish behind their own dialog.
+	private var hostWindow: FloatingPanel? {
+		NSApp.windows.compactMap { $0 as? FloatingPanel }.first
 	}
 
 	/// Reloads the on-disk transcript list off the main actor.
