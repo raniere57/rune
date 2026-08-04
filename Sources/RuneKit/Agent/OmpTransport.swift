@@ -30,13 +30,20 @@ public final class LiveOmpTransport: OmpTransport {
 		mode: AgentMode
 	) throws -> AsyncStream<OmpProcessEvent> {
 		guard let executable = OmpLocator.find() else { throw OmpProcessError.executableNotFound }
+
 		// The tool allow-list is a launch argument: the registry is built once,
 		// at startup, so switching modes means a fresh process.
+		var arguments = OmpProcessController.defaultArguments + mode.launchArguments
+		// Settings with no CLI flag ride in on a generated overlay.
+		if let overlay = OmpConfigOverlay.write() {
+			arguments += ["--config", overlay.path]
+		}
+
 		return try controller.start(
 			executable: executable,
 			workspace: workspace,
 			apiKey: apiKey,
-			arguments: OmpProcessController.defaultArguments + mode.launchArguments
+			arguments: arguments
 		)
 	}
 

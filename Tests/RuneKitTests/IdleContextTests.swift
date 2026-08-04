@@ -168,3 +168,49 @@ struct SessionIntegrityTests {
 		#expect(warned, "uma sessão divergente precisa ser detectada")
 	}
 }
+
+@Suite("Vision delegation")
+struct VisionDelegationTests {
+	@Test("the overlay names the vision role, which is what inspect_image resolves")
+	func overlayCarriesVisionRole() {
+		let body = OmpConfigOverlay.body(visionModelSelector: "opencode-zen/mimo-v2.5-free")
+		#expect(body.contains("modelRoles:"))
+		#expect(body.contains("vision: \"opencode-zen/mimo-v2.5-free\""))
+		// Two-space indent under the key — anything else is not the mapping YAML
+		// expects, and OMP would read no role at all.
+		#expect(body.contains("\n  vision:"))
+		#expect(body.hasSuffix("\n"))
+	}
+
+	@Test("no vision model means no overlay file at all")
+	func noVisionModelWritesNothing() {
+		#expect(OmpConfigOverlay.write(visionModelSelector: nil) == nil)
+		#expect(OmpConfigOverlay.write(visionModelSelector: "") == nil)
+	}
+
+	@Test("the overlay is written where omp can read it")
+	func overlayIsWritten() throws {
+		let url = try #require(OmpConfigOverlay.write(visionModelSelector: "opencode-zen/mimo-v2.5-free"))
+		defer { try? FileManager.default.removeItem(at: url) }
+
+		#expect(url.pathExtension == "yml")
+		let written = try String(contentsOf: url, encoding: .utf8)
+		#expect(written.contains("opencode-zen/mimo-v2.5-free"))
+	}
+
+	@Test("the configured vision model is one the catalogue says can read images")
+	func visionModelIsPlausible() throws {
+		// Guards a rename or a typo: the selector must be `provider/model`, and
+		// must not be the primary model, which is text-only.
+		let selector = try #require(AppConfiguration.visionModelSelector)
+		let parts = selector.split(separator: "/")
+		#expect(parts.count == 2)
+		#expect(String(parts[0]) == AppConfiguration.providerId)
+		#expect(String(parts[1]) != AppConfiguration.primaryModelId)
+	}
+
+	@Test("plan mode keeps inspect_image, or images would not work read-only")
+	func planKeepsInspectImage() {
+		#expect(AppConfiguration.planModeTools.contains("inspect_image"))
+	}
+}

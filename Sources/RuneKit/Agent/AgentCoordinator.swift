@@ -501,13 +501,14 @@ public final class AgentCoordinator {
 			return
 		}
 
+		// An image only has nowhere to go when the active model cannot read one
+		// *and* no vision model is configured. Otherwise OMP's `inspect_image`
+		// picks it up and delegates to `modelRoles.vision`.
 		let images = attachments.compactMap(\.image)
-		if !images.isEmpty, !modelSupportsImages {
+		if !images.isEmpty, !modelSupportsImages, AppConfiguration.visionModelSelector == nil {
 			append(.failure(FailureEntry(
 				text: "O modelo \(activeModelDescription ?? AppConfiguration.primaryModelSelector) não aceita imagens.",
-				detail: AppConfiguration.visionModelSelector == nil
-					? "Defina AppConfiguration.visionModelSelector para habilitar um modelo de visão secundário."
-					: "Modelo de visão configurado, mas ainda não roteado nesta versão."
+				detail: "Defina AppConfiguration.visionModelSelector para habilitar um modelo de visão."
 			)))
 			return
 		}

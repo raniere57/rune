@@ -8,6 +8,36 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
 
 ## [Não publicado]
 
+## [0.8.0] — 2026-08-04
+
+### Adicionado
+
+- **Imagens funcionam.** Cole com `⌘V` e pergunte — em Plan e em Build.
+
+  O modelo principal não enxerga (`input: ["text"]`), mas o `omp` já resolve
+  isso: para um modelo sem entrada de imagem ele expõe a ferramenta
+  `inspect_image`, que delega ao modelo em `modelRoles.vision`. Rune só precisa
+  nomear o modelo — nada de roteamento próprio. O papel vai num overlay de
+  config gerado a cada lançamento e passado com `omp --config`.
+
+  O modelo de visão é **`opencode-zen/mimo-v2.5-free`**: aceita
+  `["text", "image"]`, 200K de contexto e **custo zero**, então a conta continua
+  em nada.
+
+  Verificado de ponta a ponta com modelos reais: um PNG escrito `ZEPHYR 907`,
+  em diretório novo e com texto inédito para o modelo, volta como `ZEPHYR 907`
+  em modo Plan.
+
+### Alterado
+
+- Uma imagem só é recusada quando o modelo ativo não a lê **e** não há modelo de
+  visão configurado. Antes bastava a primeira condição, o que bloqueava um
+  caminho que funciona.
+- 6 testes novos (144 no total), incluindo um que confirma que o lançamento real
+  do `omp` recebe o overlay — se ele parar de ser passado, imagens quebram em
+  silêncio.
+
+
 ## [0.7.2] — 2026-08-04
 
 ### Alterado
@@ -334,7 +364,8 @@ Primeira versão. GUI nativa mínima para o `omp`, na barra de menus.
   testado; falta rotear para um modelo de visão.
 - Assinatura ad-hoc — o Gatekeeper bloqueia na primeira abertura.
 
-[Não publicado]: https://github.com/raniere57/rune/compare/v0.7.2...HEAD
+[Não publicado]: https://github.com/raniere57/rune/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/raniere57/rune/releases/tag/v0.8.0
 [0.7.2]: https://github.com/raniere57/rune/releases/tag/v0.7.2
 [0.7.1]: https://github.com/raniere57/rune/releases/tag/v0.7.1
 [0.7.0]: https://github.com/raniere57/rune/releases/tag/v0.7.0

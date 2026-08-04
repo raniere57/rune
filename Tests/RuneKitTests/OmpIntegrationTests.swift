@@ -111,6 +111,24 @@ struct OmpIntegrationTests {
 		consume.cancel()
 	}
 
+	@Test("launching writes the config overlay that carries the vision role")
+	func liveLaunchWritesOverlay() throws {
+		// The overlay is what makes `inspect_image` resolve a model instead of
+		// failing with "does not support image input"; if `LiveOmpTransport`
+		// stops passing it, images silently stop working.
+		let overlay = try #require(OmpConfigOverlay.write())
+		defer { try? FileManager.default.removeItem(at: overlay) }
+
+		let transport = LiveOmpTransport()
+		_ = try transport.start(workspace: workspace, apiKey: "integration-placeholder", mode: .plan)
+        defer { transport.stopImmediately() }
+
+		// `start` rewrites it; the file must exist and name the vision role.
+		let written = try String(contentsOfFile: overlay.path, encoding: .utf8)
+		#expect(written.contains("modelRoles:"))
+		#expect(written.contains(try #require(AppConfiguration.visionModelSelector)))
+	}
+
 	@Test("the coordinator boots against the real binary", .timeLimit(.minutes(1)))
 	func coordinatorBoot() async throws {
 		let defaults = UserDefaults(suiteName: "rune.integration.\(UUID().uuidString)")!

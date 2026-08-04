@@ -47,12 +47,18 @@ public enum AppConfiguration {
 	/// Conceptual selector, used only for display and diagnostics.
 	public static var primaryModelSelector: String { "\(providerId)/\(primaryModelId)" }
 
-	/// Optional secondary model used for image input. `deepseek-v4-flash`
-	/// advertises `input: ["text"]`, so images cannot be routed to it. Set this
-	/// to e.g. `"opencode-zen/claude-haiku-4-5"` to enable image prompts.
-	/// Left `nil` on purpose: silently switching to a different paid model is
-	/// not acceptable.
-	public static let visionModelSelector: String? = nil
+	/// Model that reads images, since the primary one cannot.
+	///
+	/// `deepseek-v4-flash-free` advertises `input: ["text"]`. OMP already solves
+	/// this: for a model with no native image input it exposes `inspect_image`,
+	/// which delegates to whatever `modelRoles.vision` points at — so Rune only
+	/// has to name the model, not route anything itself.
+	///
+	/// `mimo-v2.5-free` was chosen because it accepts `["text", "image"]`, has a
+	/// 200K context, and costs zero — keeping the whole app free to run.
+	/// Verified end to end: a PNG reading "RUNE 42" comes back as `RUNE 42`, in
+	/// both Plan and Build.
+	public static let visionModelSelector: String? = "opencode-zen/mimo-v2.5-free"
 
 	// MARK: - OMP process
 

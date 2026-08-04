@@ -525,11 +525,17 @@ struct AgentCoordinatorTests {
 
 	// MARK: - Images
 
-	@Test("an image is refused when the active model declares text-only input")
-	func imageRefusedOnTextOnlyModel() async throws {
+	@Test("a text-only model still receives the image, for inspect_image to delegate")
+	func imageSentForVisionDelegation() async throws {
+		// The primary model cannot read images, but a vision model is configured,
+		// so OMP's `inspect_image` picks the attachment up. Refusing here would
+		// block a path that works.
+		#expect(AppConfiguration.visionModelSelector != nil)
+
 		let transport = FakeOmpTransport()
 		let coordinator = makeCoordinator(transport: transport)
 		try await coordinator.ensureRunning()
+		#expect(!coordinator.modelSupportsImages)
 
 		let attachment = PendingAttachment.image(
 			RpcImage(mimeType: "image/png", base64Data: "aW1n"),
@@ -538,12 +544,16 @@ struct AgentCoordinatorTests {
 		await coordinator.submit(text: "o que é isto?", attachments: [attachment])
 		await settle()
 
-		#expect(!transport.commandTypes().contains("prompt"))
-		guard case .failure(let entry) = coordinator.items.last else {
-			Issue.record("expected a failure entry")
-			return
+        let images = transport.sent.compactMap { entry -> [RpcImage]? in
+			guard case .prompt(_, let images, _) = entry.command else { return nil }
+			return images
+		}.first
+		#expect(images?.count == 1)
+		let refused = coordinator.items.contains {
+			if case .failure = $0 { return true }
+			return false
 		}
-		#expect(entry.text.contains("não aceita imagens"))
+		#expect(!refused)
 	}
 
 	@Test("an image reaches the wire as ImageContent when the model accepts it")

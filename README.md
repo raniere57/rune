@@ -38,7 +38,7 @@ nenhuma delas:
 |---|---|
 | 🪟 **A interface do macOS** | `NSStatusItem` + `NSPanel` + SwiftUI. Sem Electron, sem WebView, sem servidor local. O app inteiro tem 2,7 MB e não aparece no Dock. |
 | 🧠 **[Oh My Pi](https://github.com/can1357/oh-my-pi)** | O agente de verdade: ferramentas, sessões, shell, Git, edição por hash, LSP, subagentes, memória, compactação. Rune não reimplementa nada disso. |
-| 💸 **[OpenCode Zen](https://opencode.ai)** | O provedor. Com `deepseek-v4-flash-free` o custo por token é **zero** — 200K de contexto, effort `max`, sem cartão. |
+| 💸 **[OpenCode Zen](https://opencode.ai)** | O provedor. `deepseek-v4-flash-free` para texto e `mimo-v2.5-free` para imagens: **zero por token** nos dois, 200K de contexto, effort `max`, sem cartão. |
 
 O app **não é um agente**. É o host gráfico e o gerente de processo. Todo o
 trabalho acontece dentro do `omp`, que fala JSONL por stdin/stdout:
@@ -51,6 +51,7 @@ Rune.app  (Swift · SwiftUI · AppKit · zero dependências)
 omp --mode rpc-ui --approval-mode yolo
       │
       ├── modelo (opencode-zen/deepseek-v4-flash-free, effort max)
+      ├── visão  (opencode-zen/mimo-v2.5-free, via inspect_image)
       ├── sessões · ferramentas · shell · Git
       ├── edição de arquivos · LSP
       └── subagentes · memória · compactação
@@ -232,6 +233,30 @@ O app não mantém banco de sessões próprio: o `omp` já é dono desse
 armazenamento, e duplicá-lo só criaria uma segunda fonte de verdade para
 divergir. O picker só lê o cabeçalho de cada transcrito.
 
+### Imagens
+
+Cole uma imagem com `⌘V` e pergunte sobre ela. O modelo principal não enxerga —
+`deepseek-v4-flash-free` anuncia `input: ["text"]` — mas o `omp` resolve isso
+sozinho: para um modelo sem entrada de imagem ele expõe a ferramenta
+`inspect_image`, que delega para o modelo apontado em `modelRoles.vision`.
+
+Rune só precisa **nomear** o modelo, não rotear nada. O papel é escrito num
+overlay de config gerado a cada lançamento e passado com `omp --config`:
+
+```yaml
+modelRoles:
+  vision: "opencode-zen/mimo-v2.5-free"
+```
+
+`mimo-v2.5-free` aceita `["text", "image"]`, tem 200K de contexto e custa
+**zero** — então a conta continua em nada. Funciona nos dois modos: o
+`inspect_image` está na allow-list do Plan, então dá para investigar uma
+captura de tela sem sair do read-only.
+
+> Verificado de ponta a ponta, não deduzido: um PNG escrito `ZEPHYR 907`, num
+> diretório novo e com texto que o modelo nunca tinha visto, volta como
+> `ZEPHYR 907` em modo Plan.
+
 ### Plan e Build
 
 `⇥` alterna entre dois modos, mostrados no chip abaixo do campo:
@@ -312,6 +337,7 @@ Sources/
     │   ├── OmpProcessController.swift  Process/Pipe/FileHandle
     │   ├── OmpTransport.swift       seam para testes
     │   ├── AgentMode.swift          plan (read-only) vs build
+    │   ├── OmpConfigOverlay.swift   config gerada (papel de visão)
     │   ├── AgentRunState.swift
     │   └── AgentCoordinator.swift   máquina de estados, sessões, idle shutdown
     ├── RPC/
@@ -535,7 +561,7 @@ constante.
 swift test
 ```
 
-**138 testes, 17 suítes.** Nenhum gasta token.
+**144 testes, 18 suítes.** Nenhum gasta token.
 
 | Suíte | Cobre |
 |---|---|
@@ -638,25 +664,19 @@ podem divergir do changelog.
 
 ## Limitações conhecidas
 
-1. **Sem imagens no modelo atual.** `deepseek-v4-flash-free` anuncia
-   `input: ["text"]`. Colar uma imagem produz um erro claro em vez de trocar de
-   modelo em silêncio. O transporte de `ImageContent` está implementado e
-   testado; falta rotear para um modelo de visão. Ponto de extensão:
-   `AppConfiguration.visionModelSelector` (hoje `nil`). O `omp` também tem
-   `/vision` (delegação de visão), que ainda não testei por aqui.
-2. **Build não pede confirmação para nada.** É o comportamento pedido, mas em
+1. **Build não pede confirmação para nada.** É o comportamento pedido, mas em
    `yolo` o guarda de padrões críticos do `omp` não é aplicado — ver
    [Segurança](#segurança).
-3. **Assinatura ad-hoc.** O Gatekeeper bloqueia a primeira abertura. Distribuir
+2. **Assinatura ad-hoc.** O Gatekeeper bloqueia a primeira abertura. Distribuir
    sem esse atrito exige Developer ID + notarização.
-4. **Histórico restaurado traz as últimas 300 entradas**, lidas do transcrito em
+3. **Histórico restaurado traz as últimas 300 entradas**, lidas do transcrito em
    disco. Conversas muito longas aparecem truncadas no começo, e não há scroll
    infinito para trás.
-5. **Frames de subagente são decodificados mas não renderizados.** Subagentes
+4. **Frames de subagente são decodificados mas não renderizados.** Subagentes
    ativos não aparecem como linhas recolhíveis.
-6. **Um único workspace por vez.** O `--add-dir` do `omp` não é exposto.
-7. **RAM durante uma tarefa não medida** — exigiria um turno faturado.
-8. **Sem teste de UI automatizado.** A verificação visual é o `--diagnose`, que
+5. **Um único workspace por vez.** O `--add-dir` do `omp` não é exposto.
+6. **RAM durante uma tarefa não medida** — exigiria um turno faturado.
+7. **Sem teste de UI automatizado.** A verificação visual é o `--diagnose`, que
    renderiza o painel real para PNG, mas não simula cliques nem o atalho global.
    Foi por isso que a regressão do clique no ícone (0.6.1) passou despercebida
    até alguém usar o app.
@@ -665,15 +685,13 @@ podem divergir do changelog.
 
 ## Próximos passos
 
-1. **Imagens.** Testar o `/vision` do `omp` antes de escrever roteamento
-   próprio — pode já resolver. Se não, implementar o papel `vision` atrás de
-   `AppConfiguration.visionModelSelector`, sem tocar na interface. É a única
-   funcionalidade prometida no escopo original que ainda não fecha o ciclo.
-2. **Subagentes visíveis.** Assinar `set_subagent_subscription: progress` e
+1. **Subagentes visíveis.** Assinar `set_subagent_subscription: progress` e
    mostrar os ativos como linhas recolhíveis, do mesmo jeito que tool calls —
    hoje esses frames chegam e são descartados.
-3. **Assinar e notarizar.** Developer ID + `notarytool` no `build-dmg.sh`, para
+2. **Assinar e notarizar.** Developer ID + `notarytool` no `build-dmg.sh`, para
    o `.dmg` abrir sem o aviso do Gatekeeper.
+3. **Medir a RAM durante uma tarefa real**, o único número da tabela que segue
+   em aberto.
 
 ---
 
@@ -698,7 +716,7 @@ pagar nada e sem nenhuma caixa-preta no meio. Open source é lindo mesmo.
 ```bash
 git clone https://github.com/raniere57/rune.git && cd rune
 brew install can1357/tap/omp
-swift test          # 138 testes, nenhum gasta token
+swift test          # 144 testes, nenhum gasta token
 ./scripts/build-app.sh release && open build/Rune.app
 ```
 
