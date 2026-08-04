@@ -111,15 +111,27 @@ public struct ConversationView: View {
 				},
 				onMoveSelection: { composer.moveSelection(by: $0) },
 				onCompleteSuggestion: { composer.acceptSuggestion() },
+				onToggleMode: { coordinator.toggleMode() },
 				onRemoveAttachment: { composer.remove($0) }
 			)
 			.animation(.easeOut(duration: 0.12), value: composer.isSuggesting)
 
-			if let hint = statusHint {
-				Text(hint)
-					.font(.system(size: 11))
-					.foregroundStyle(.tertiary)
-					.lineLimit(1)
+			HStack(spacing: 8) {
+				ModePill(
+					mode: coordinator.mode,
+					isPending: coordinator.modeIsPending,
+					isLocked: coordinator.isBusy,
+					onToggle: { coordinator.toggleMode() }
+				)
+
+				if let hint = statusHint {
+					Text(hint)
+						.font(.system(size: 11))
+						.foregroundStyle(.tertiary)
+						.lineLimit(1)
+				}
+
+				Spacer(minLength: 0)
 			}
 		}
 		.padding(.horizontal, 14)

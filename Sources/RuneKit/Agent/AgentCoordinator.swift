@@ -25,6 +25,16 @@ public final class AgentCoordinator {
 	public private(set) var availableCommands: [SlashCommand] = SlashCommand.local
 	public private(set) var modelSupportsImages = false
 
+	/// What the next run will use. Changing it does not touch a live process —
+	/// the tool registry is fixed at launch, so the switch lands on the next
+	/// boot (see `ensureRunning`).
+	public private(set) var mode: AgentMode = AppConfiguration.defaultMode
+	/// The mode the running process was actually launched with.
+	private var runningMode: AgentMode?
+
+	/// True when a restart is owed because the mode changed under a live process.
+	public var modeIsPending: Bool { runningMode != nil && runningMode != mode }
+
 	public var hasConversation: Bool { !items.isEmpty }
 
 	/// True while OMP is streaming or running tools — the composer uses this to
@@ -54,6 +64,10 @@ public final class AgentCoordinator {
 	private var streamingAssistantId: String?
 	private var pendingRequestIds: Set<String> = []
 	private var sessionFile: String?
+	/// Bumped on every launch. The previous process's event stream can still be
+	/// draining when the next one boots (a mode switch or `/cd` restarts it), and
+	/// a late `terminated` from the old one would otherwise stop the new one.
+	private var processGeneration = 0
 
 	// MARK: - Init
 
@@ -76,6 +90,10 @@ public final class AgentCoordinator {
 			self.workspace = .default
 		}
 		self.sessionFile = defaults.string(forKey: AppConfiguration.DefaultsKey.lastSessionFile)
+		if let saved = defaults.string(forKey: AppConfiguration.DefaultsKey.mode),
+		   let restored = AgentMode(rawValue: saved) {
+			self.mode = restored
+		}
 		loadCachedCommands()
 	}
 
@@ -171,6 +189,30 @@ public final class AgentCoordinator {
 		idleTimer = nil
 		consumeTask?.cancel()
 		transport.stopImmediately()
+	}
+
+	/// `Tab`. Refused mid-run: the tool registry cannot change under a turn
+	/// that is already using it.
+	@discardableResult
+	public func toggleMode() -> Bool {
+		setMode(mode.next)
+	}
+
+	@discardableResult
+	public func setMode(_ newMode: AgentMode) -> Bool {
+		guard !runState.isBusy else {
+			append(.notice(NoticeEntry(
+				level: .warning,
+				text: "Termine ou aborte a execução antes de trocar de modo."
+			)))
+			return false
+		}
+		guard newMode != mode else { return true }
+
+		mode = newMode
+		defaults.set(newMode.rawValue, forKey: AppConfiguration.DefaultsKey.mode)
+		lifecycleLog.info("mode -> \(newMode.rawValue, privacy: .public)")
+		return true
 	}
 
 	// MARK: - Local commands
@@ -278,6 +320,7 @@ public final class AgentCoordinator {
 
 	private func reportStatus() async {
 		var lines = [
+			"Modo: \(mode.label) — \(mode.summary)",
 			"Estado: \(runState.label)",
 			"Workspace: \(workspace.displayName)",
 			"Modelo: \(activeModelDescription ?? AppConfiguration.primaryModelSelector) (não iniciado)",
@@ -380,7 +423,13 @@ public final class AgentCoordinator {
 		// A boot already in flight wins over the `isRunning` check: the process
 		// exists but is not yet negotiated or pointed at the right model.
 		if let bootTask { return try await bootTask.value }
-		if transport.isRunning { return }
+		if transport.isRunning {
+			guard modeIsPending else { return }
+			// The session file is kept, so the restart reloads the same
+			// conversation — switching modes never loses context.
+			lifecycleLog.info("restarting for mode change")
+			await shutdown(reason: "mode changed")
+		}
 
 		let task = Task { [weak self] in
 			guard let self else { return }
@@ -405,14 +454,25 @@ public final class AgentCoordinator {
 		runState = .starting
 		lifecycleLog.info("starting omp in \(self.workspace.url.path, privacy: .public)")
 
-		let stream = try transport.start(workspace: workspace.resolvedExistingURL(), apiKey: apiKey)
+		let launchMode = mode
+		let stream = try transport.start(
+			workspace: workspace.resolvedExistingURL(),
+			apiKey: apiKey,
+			mode: launchMode
+		)
+		runningMode = launchMode
+		processGeneration += 1
+		let generation = processGeneration
 		// Inherits main-actor isolation from `boot()`, so frames are applied in
-		// arrival order with no hop between them.
+		// arrival order with no hop between them. The generation check drops
+		// anything still arriving from a process we already replaced.
 		consumeTask = Task { [weak self] in
 			for await event in stream {
-				self?.handle(event)
+				guard let self, self.processGeneration == generation else { continue }
+				self.handle(event)
 			}
-			self?.handleStreamEnd()
+			guard let self, self.processGeneration == generation else { return }
+			self.handleStreamEnd()
 		}
 
 		let ready = try await awaitReadyFrame(timeout: .seconds(30))
@@ -818,6 +878,7 @@ public final class AgentCoordinator {
 
 		let wasBusy = runState.isBusy
 		runState = .stopped
+		runningMode = nil
 		guard status != 0 || wasBusy else { return }
 		lifecycleLog.error("omp exited unexpectedly: \(reason, privacy: .public)")
 		append(.failure(FailureEntry(
@@ -953,7 +1014,17 @@ public final class AgentCoordinator {
 		idleTimer?.cancel()
 		idleTimer = nil
 		transport.stop()
+
+		// Wait for the child to actually exit before returning: the process
+		// controller refuses to start a second one while the first is alive, so
+		// a restart that did not wait would fail with `alreadyRunning`.
+		let deadline = Date().addingTimeInterval(AppConfiguration.terminationGraceSeconds + 2)
+		while transport.isRunning, Date() < deadline {
+			try? await Task.sleep(for: .milliseconds(25))
+		}
+
 		runState = .stopped
+		runningMode = nil
 	}
 }
 

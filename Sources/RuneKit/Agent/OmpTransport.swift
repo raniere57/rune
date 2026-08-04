@@ -7,7 +7,7 @@ import Foundation
 /// process or spending a token. See `FakeOmpTransport` in the test target.
 public protocol OmpTransport: AnyObject, Sendable {
 	var isRunning: Bool { get }
-	func start(workspace: URL, apiKey: String?) throws -> AsyncStream<OmpProcessEvent>
+	func start(workspace: URL, apiKey: String?, mode: AgentMode) throws -> AsyncStream<OmpProcessEvent>
 	func send(_ command: RpcCommand, id: String?) throws
 	func enableChunkReassembly(maxReassembledBytes: Int)
 	func stop()
@@ -24,9 +24,20 @@ public final class LiveOmpTransport: OmpTransport {
 
 	public var processIdentifier: Int32? { controller.processIdentifier }
 
-	public func start(workspace: URL, apiKey: String?) throws -> AsyncStream<OmpProcessEvent> {
+	public func start(
+		workspace: URL,
+		apiKey: String?,
+		mode: AgentMode
+	) throws -> AsyncStream<OmpProcessEvent> {
 		guard let executable = OmpLocator.find() else { throw OmpProcessError.executableNotFound }
-		return try controller.start(executable: executable, workspace: workspace, apiKey: apiKey)
+		// The tool allow-list is a launch argument: the registry is built once,
+		// at startup, so switching modes means a fresh process.
+		return try controller.start(
+			executable: executable,
+			workspace: workspace,
+			apiKey: apiKey,
+			arguments: OmpProcessController.defaultArguments + mode.launchArguments
+		)
 	}
 
 	public func send(_ command: RpcCommand, id: String?) throws {

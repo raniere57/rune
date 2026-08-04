@@ -141,6 +141,7 @@ da runa Algiz (ᛉ).
 | Copiar a última resposta | `⌘C` sem seleção |
 | Colar | `⌘V` — texto, imagem, arquivo ou pasta |
 | Lista de comandos | digite `/` — `↑↓` navega, `⇥`/`Enter` completa, `Esc` fecha |
+| Alternar Plan / Build | `⇥` com o campo sem lista aberta, ou clique no chip |
 
 ### Comandos internos
 
@@ -165,6 +166,29 @@ tem os seus próprios — 133 na instalação de referência, incluindo `/compac
 `/rename`, `/add-dir`, `/mcp`, `/memory`, `/jobs`, `/vision` e as skills em
 `/skill:*`. A lista do `/` mostra os da sua instalação, e fica em cache para
 aparecer completa mesmo com o `omp` desligado.
+
+### Plan e Build
+
+`⇥` alterna entre dois modos, mostrados no chip abaixo do campo:
+
+| Modo | Ferramentas | Para quê |
+|---|---|---|
+| **Plan** | `read`, `grep`, `glob`, `lsp`, `web_search`, `inspect_image`, `todo`, `ask` | Investigar e planejar sem tocar em nada |
+| **Build** | todas | Editar, rodar comandos, usar subagentes |
+
+Plan é **read-only de verdade**, não um pedido de aprovação: o `omp` sobe com
+`--tools=<lista>` e as ferramentas de escrita e execução simplesmente não
+existem no registro. Não há o que aprovar e não há como escapar.
+
+> O plan mode nativo do `omp` (`Alt+Shift+P`) vive no TUI e não é exposto no
+> RPC. A allow-list de ferramentas é o mecanismo disponível para um host de
+> protocolo — e é o mais estrito dos dois.
+
+O registro de ferramentas é montado no lançamento, então trocar de modo
+reinicia o `omp`. A sessão é preservada, então **o plano continua no contexto**
+quando você passa para Build. A troca é preguiçosa: o chip muda na hora e o
+reinício acontece no próximo envio, com um ponto laranja indicando que está
+pendente. Durante uma execução o modo fica travado — termine ou aborte antes.
 
 ### Colar
 
@@ -217,6 +241,7 @@ Sources/
     │   ├── OmpProcessController.swift  Process/Pipe/FileHandle
     │   ├── OmpTransport.swift       seam para testes
     │   ├── AgentRunState.swift
+    │   ├── AgentMode.swift          plan (read-only) vs build
     │   └── AgentCoordinator.swift   máquina de estados, sessões, idle shutdown
     ├── RPC/
     │   ├── JSONValue.swift
@@ -413,7 +438,7 @@ constante.
 swift test
 ```
 
-**91 testes, 8 suítes.** Nenhum gasta token.
+**101 testes, 9 suítes.** Nenhum gasta token.
 
 | Suíte | Cobre |
 |---|---|

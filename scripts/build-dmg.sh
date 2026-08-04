@@ -41,18 +41,10 @@ else
 	echo "aviso: ${LAYOUT} ausente; a janela vai abrir sem layout" >&2
 fi
 
-# The volume icon comes from the app's own icns, so the mounted disk carries
-# the product's identity instead of a generic drive.
-if [ -f "build/${APP_NAME}.icns" ]; then
-	cp "build/${APP_NAME}.icns" "${STAGING}/.VolumeIcon.icns"
-fi
-
-# `SetFile -a C` on the staging folder rather than on a mounted volume:
-# `hdiutil create -srcfolder` carries the attribute to the volume root, so the
-# custom icon survives without ever mounting the image.
-if [ -f "${STAGING}/.VolumeIcon.icns" ]; then
-	SetFile -a C "${STAGING}" 2>/dev/null || true
-fi
+# No `.VolumeIcon.icns`: a custom volume icon is a file sitting in the window,
+# and `.DS_Store` has no position for it, so Finder parks it below the app —
+# visible to anyone browsing with hidden files shown. A generic disk icon in the
+# sidebar for the few seconds an install takes is the cheaper trade.
 
 # Straight to the final read-only compressed image, with no read/write mount in
 # between. Mounting is what creates `.fseventsd`, and the OS recreates it during

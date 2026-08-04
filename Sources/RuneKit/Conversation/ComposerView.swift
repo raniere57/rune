@@ -20,6 +20,8 @@ struct ComposerView: View {
 	/// `true` when the keystroke was consumed there.
 	let onMoveSelection: (Int) -> Bool
 	let onCompleteSuggestion: () -> Bool
+	/// Tab falls through to this when no suggestion is open.
+	let onToggleMode: () -> Bool
 	let onRemoveAttachment: (PendingAttachment) -> Void
 
 	@State private var height = AppConfiguration.composerMinHeight
@@ -57,7 +59,8 @@ struct ComposerView: View {
 						onPaste: onPaste,
 						onEscape: onEscape,
 						onMoveSelection: onMoveSelection,
-						onCompleteSuggestion: onCompleteSuggestion
+						onCompleteSuggestion: onCompleteSuggestion,
+						onToggleMode: onToggleMode
 					)
 					.frame(height: height)
 				}
@@ -168,6 +171,7 @@ private struct ComposerTextView: NSViewRepresentable {
 	let onEscape: () -> Void
 	let onMoveSelection: (Int) -> Bool
 	let onCompleteSuggestion: () -> Bool
+	let onToggleMode: () -> Bool
 
 	func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -179,6 +183,7 @@ private struct ComposerTextView: NSViewRepresentable {
 		textView.onEscape = onEscape
 		textView.onMoveSelection = onMoveSelection
 		textView.onCompleteSuggestion = onCompleteSuggestion
+		textView.onToggleMode = onToggleMode
 		textView.font = .systemFont(ofSize: 14)
 		textView.isRichText = false
 		textView.allowsUndo = true
@@ -205,6 +210,7 @@ private struct ComposerTextView: NSViewRepresentable {
 		textView.onEscape = onEscape
 		textView.onMoveSelection = onMoveSelection
 		textView.onCompleteSuggestion = onCompleteSuggestion
+		textView.onToggleMode = onToggleMode
 		if textView.string != text {
 			let wasCleared = text.isEmpty && !textView.string.isEmpty
 			textView.string = text
@@ -256,6 +262,7 @@ final class InterceptingTextView: NSTextView {
 	var onEscape: (() -> Void)?
 	var onMoveSelection: ((Int) -> Bool)?
 	var onCompleteSuggestion: (() -> Bool)?
+	var onToggleMode: (() -> Bool)?
 
 	/// Claims focus as soon as the view has a window. `makeNSView` runs before
 	/// the panel is ordered front, so asking for first responder there would
@@ -281,8 +288,13 @@ final class InterceptingTextView: NSTextView {
 			if onMoveSelection?(-1) != true { super.doCommand(by: selector) }
 		case #selector(moveDown(_:)):
 			if onMoveSelection?(1) != true { super.doCommand(by: selector) }
-		case #selector(insertTab(_:)):
-			if onCompleteSuggestion?() != true { super.doCommand(by: selector) }
+		case #selector(insertTab(_:)), #selector(insertBacktab(_:)):
+			// Tab completes the open suggestion first; with no popup it toggles
+			// plan/build, the way OpenCode's mode switch works. A literal tab
+			// character in a prompt is not worth a third meaning.
+			if onCompleteSuggestion?() == true { return }
+			if onToggleMode?() == true { return }
+			super.doCommand(by: selector)
 		default:
 			super.doCommand(by: selector)
 		}
@@ -291,5 +303,67 @@ final class InterceptingTextView: NSTextView {
 	override func paste(_ sender: Any?) {
 		if onPaste?() == true { return }
 		pasteAsPlainText(sender)
+	}
+}
+
+/// Current agent mode, and the affordance for `Tab`.
+///
+/// Lives in the status row rather than the composer row so the input keeps a
+/// single column of controls, and carries the `⇥` glyph because a keystroke
+/// nobody can see is a keystroke nobody uses.
+struct ModePill: View {
+	let mode: AgentMode
+	/// A live process is still running the previous mode; the switch lands on
+	/// the next send.
+	let isPending: Bool
+	/// Mid-run the tool registry cannot change, so the control is inert.
+	let isLocked: Bool
+	let onToggle: () -> Void
+
+	@State private var isHovering = false
+
+	var body: some View {
+		Button(action: onToggle) {
+			HStack(spacing: 5) {
+				Text("⇥")
+					.font(.system(size: 10, weight: .semibold))
+					.foregroundStyle(.tertiary)
+				Image(systemName: mode.symbol)
+					.font(.system(size: 9, weight: .semibold))
+				Text(mode.label)
+					.font(.system(size: 11, weight: .medium))
+				if isPending {
+					Circle()
+						.fill(.orange)
+						.frame(width: 4, height: 4)
+				}
+			}
+			.foregroundStyle(isLocked ? AnyShapeStyle(.tertiary) : AnyShapeStyle(tint))
+			.padding(.horizontal, 7)
+			.padding(.vertical, 3)
+			.background(
+				(isLocked ? Color.clear : tint.opacity(isHovering ? 0.20 : 0.12)),
+				in: Capsule()
+			)
+			.overlay(Capsule().strokeBorder(tint.opacity(isLocked ? 0.15 : 0.30)))
+			.contentShape(Capsule())
+		}
+		.buttonStyle(.plain)
+		.disabled(isLocked)
+		.help(helpText)
+		.accessibilityLabel("Modo \(mode.label). \(mode.summary)")
+		.onHover { isHovering = $0 }
+		.animation(.easeOut(duration: 0.12), value: isHovering)
+		.animation(.easeOut(duration: 0.12), value: mode)
+	}
+
+	private var tint: Color {
+		mode == .plan ? .teal : .accentColor
+	}
+
+	private var helpText: String {
+		if isLocked { return "Termine ou aborte a execução para trocar de modo" }
+		if isPending { return "\(mode.summary) — o omp reinicia no próximo envio (⇥)" }
+		return "\(mode.summary) — ⇥ alterna"
 	}
 }

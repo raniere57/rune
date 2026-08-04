@@ -589,3 +589,162 @@ struct AgentCoordinatorTests {
 		#expect(message?.contains("arquivo:") == true)
 	}
 }
+
+@MainActor
+@Suite("Plan / build mode")
+struct AgentModeTests {
+	private func makeCoordinator(transport: FakeOmpTransport) -> AgentCoordinator {
+		AgentCoordinator(
+			transport: transport,
+			defaults: UserDefaults(suiteName: "rune.mode.\(UUID().uuidString)")!,
+			idleInterval: 3600,
+			apiKeyProvider: { "test-key" }
+		)
+	}
+
+	private func settle(_ turns: Int = 6) async {
+		for _ in 0..<turns { await Task.yield() }
+		try? await Task.sleep(for: .milliseconds(20))
+		for _ in 0..<turns { await Task.yield() }
+	}
+
+	@Test("plan mode restricts the tool registry to read-only tools")
+	func planAllowListIsReadOnly() {
+		let tools = try! #require(AgentMode.plan.toolAllowList)
+		// The mode's entire promise is "changes nothing"; these would break it.
+		for mutating in ["write", "edit", "bash", "python", "notebook", "browser", "computer", "task"] {
+			#expect(!tools.contains(mutating), "\(mutating) must not survive plan mode")
+		}
+		#expect(tools.contains("read"))
+		#expect(tools.contains("grep"))
+	}
+
+	@Test("build mode passes no allow-list, so a newly added tool stays available")
+	func buildKeepsEveryTool() {
+		#expect(AgentMode.build.toolAllowList == nil)
+		#expect(AgentMode.build.launchArguments.isEmpty)
+	}
+
+	@Test("plan mode reaches omp as --tools")
+	func planLaunchArguments() {
+		let arguments = AgentMode.plan.launchArguments
+		#expect(arguments.first == "--tools")
+		#expect(arguments.count == 2)
+		#expect(arguments[1].contains("read"))
+		#expect(!arguments[1].contains("bash"))
+	}
+
+	@Test("toggling flips between the two modes")
+	func toggleFlips() {
+		let coordinator = makeCoordinator(transport: FakeOmpTransport())
+		let initial = coordinator.mode
+		#expect(coordinator.toggleMode())
+		#expect(coordinator.mode == initial.next)
+		#expect(coordinator.toggleMode())
+		#expect(coordinator.mode == initial)
+	}
+
+	@Test("the process launches with the selected mode")
+	func launchesWithSelectedMode() async throws {
+		let transport = FakeOmpTransport()
+		let coordinator = makeCoordinator(transport: transport)
+		coordinator.setMode(.plan)
+
+		try await coordinator.ensureRunning()
+		#expect(transport.launchedMode == .plan)
+	}
+
+	@Test("switching mode under a live process restarts it exactly once")
+	func modeChangeRestartsProcess() async throws {
+		let transport = FakeOmpTransport()
+		let coordinator = makeCoordinator(transport: transport)
+		try await coordinator.ensureRunning()
+		#expect(transport.launchCount == 1)
+		#expect(!coordinator.modeIsPending)
+
+		coordinator.setMode(.plan)
+		#expect(coordinator.modeIsPending)
+
+		try await coordinator.ensureRunning()
+		#expect(transport.launchCount == 2)
+		#expect(transport.launchedMode == .plan)
+		#expect(!coordinator.modeIsPending)
+	}
+
+	@Test("no restart when the mode did not actually change")
+	func sameModeDoesNotRestart() async throws {
+		let transport = FakeOmpTransport()
+		let coordinator = makeCoordinator(transport: transport)
+		try await coordinator.ensureRunning()
+
+		coordinator.setMode(coordinator.mode)
+		try await coordinator.ensureRunning()
+		#expect(transport.launchCount == 1)
+	}
+
+	@Test("the session survives a mode switch, so the plan stays in context")
+	func sessionSurvivesModeSwitch() async throws {
+		// A real file on disk: `restoreSessionIfPossible` only issues
+		// `switch_session` for a session that actually exists, so a fake path
+		// would silently skip the very behaviour under test.
+		let sessionFile = FileManager.default.temporaryDirectory
+			.appendingPathComponent("rune-session-\(UUID().uuidString).jsonl")
+		try Data("{}\n".utf8).write(to: sessionFile)
+		defer { try? FileManager.default.removeItem(at: sessionFile) }
+
+		let transport = FakeOmpTransport()
+		transport.sessionFile = sessionFile.path
+		let coordinator = makeCoordinator(transport: transport)
+		try await coordinator.ensureRunning()
+		await settle()
+
+		coordinator.setMode(.plan)
+		try await coordinator.ensureRunning()
+		await settle()
+
+		#expect(transport.commandTypes().contains("switch_session"))
+	}
+
+	@Test("the mode cannot change mid-run, and says why")
+	func lockedWhileBusy() async throws {
+		let transport = FakeOmpTransport()
+		let coordinator = makeCoordinator(transport: transport)
+		try await coordinator.ensureRunning()
+
+		await coordinator.submit(text: "trabalha", attachments: [])
+        transport.emit(#"{"type":"agent_start"}"#)
+		await settle()
+		#expect(coordinator.isBusy)
+
+		let before = coordinator.mode
+		#expect(!coordinator.toggleMode())
+		#expect(coordinator.mode == before)
+		guard case .notice(let entry) = coordinator.items.last else {
+			Issue.record("expected a notice")
+			return
+		}
+		#expect(entry.level == .warning)
+	}
+
+	@Test("the chosen mode is remembered across launches")
+	func modePersists() {
+		let suite = "rune.mode.persist.\(UUID().uuidString)"
+		let defaults = UserDefaults(suiteName: suite)!
+
+		let first = AgentCoordinator(
+			transport: FakeOmpTransport(),
+			defaults: defaults,
+			idleInterval: 3600,
+			apiKeyProvider: { "test-key" }
+		)
+		first.setMode(.plan)
+
+		let second = AgentCoordinator(
+			transport: FakeOmpTransport(),
+			defaults: defaults,
+			idleInterval: 3600,
+			apiKeyProvider: { "test-key" }
+		)
+		#expect(second.mode == .plan)
+	}
+}

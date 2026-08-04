@@ -63,12 +63,16 @@ public final class OmpProcessController: @unchecked Sendable {
 
 	// MARK: - Lifecycle
 
+	public static let defaultArguments = [
+		"--mode", AppConfiguration.ompMode,
+		"--approval-mode", AppConfiguration.approvalMode,
+	]
+
 	public func start(
 		executable: URL,
 		workspace: URL,
 		apiKey: String?,
-		arguments: [String] = ["--mode", AppConfiguration.ompMode,
-		                       "--approval-mode", AppConfiguration.approvalMode]
+		arguments: [String] = OmpProcessController.defaultArguments
 	) throws -> AsyncStream<OmpProcessEvent> {
 		lock.lock()
 		guard process == nil else {

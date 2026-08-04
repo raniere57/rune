@@ -8,6 +8,34 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
 
 ## [Não publicado]
 
+## [0.4.0] — 2026-08-04
+
+### Adicionado
+
+- **Modos Plan e Build, alternados por `⇥`.** Plan é read-only de verdade: o
+  `omp` sobe com `--tools=read,grep,glob,lsp,web_search,inspect_image,todo,ask`,
+  então escrita, shell, browser e subagentes não existem no registro de
+  ferramentas — não há o que aprovar nem como escapar. Build usa tudo.
+  O plan mode nativo do `omp` só existe no TUI (`Alt+Shift+P`) e não é exposto
+  no RPC; a allow-list é o mecanismo disponível a um host de protocolo, e é o
+  mais estrito.
+- Chip de modo abaixo do campo, com o glifo `⇥` para o atalho ser descobrível,
+  ponto laranja quando o reinício está pendente e estado travado durante uma
+  execução.
+- O modo escolhido é lembrado entre sessões.
+
+### Corrigido
+
+- **Ícone solto na janela do `.dmg`.** Era o `.VolumeIcon.icns`: um arquivo
+  dentro da janela sem posição no `.DS_Store`, que o Finder estacionava embaixo
+  do app e ficava visível para quem navega com arquivos ocultos à mostra.
+  Removido — um ícone genérico de disco por alguns segundos custa menos.
+- **Corrida no reinício do processo.** O evento `terminated` do processo
+  anterior podia chegar depois do novo boot e derrubá-lo, e `start` recusava
+  enquanto o filho antigo ainda vivia. O consumo de eventos agora é marcado por
+  geração e o desligamento espera a saída real. Afetava também `/cd`.
+
+
 ## [0.3.0] — 2026-08-04
 
 ### Alterado
@@ -123,7 +151,8 @@ Primeira versão. GUI nativa mínima para o `omp`, na barra de menus.
   testado; falta rotear para um modelo de visão.
 - Assinatura ad-hoc — o Gatekeeper bloqueia na primeira abertura.
 
-[Não publicado]: https://github.com/raniere57/rune/compare/v0.3.0...HEAD
+[Não publicado]: https://github.com/raniere57/rune/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/raniere57/rune/releases/tag/v0.4.0
 [0.3.0]: https://github.com/raniere57/rune/releases/tag/v0.3.0
 [0.2.0]: https://github.com/raniere57/rune/releases/tag/v0.2.0
 [0.1.0]: https://github.com/raniere57/rune/releases/tag/v0.1.0

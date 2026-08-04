@@ -22,7 +22,7 @@ struct OmpIntegrationTests {
 	@Test("handshake: ready → v2 → get_state → models → clean exit", .timeLimit(.minutes(1)))
 	func handshake() async throws {
 		let transport = LiveOmpTransport()
-		let stream = try transport.start(workspace: workspace, apiKey: "integration-placeholder")
+		let stream = try transport.start(workspace: workspace, apiKey: "integration-placeholder", mode: .build)
 
 		var reader = FrameCollector()
 		var ready: RpcReady?

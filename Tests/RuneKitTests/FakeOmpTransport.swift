@@ -25,6 +25,8 @@ final class FakeOmpTransport: OmpTransport, @unchecked Sendable {
 	private(set) var chunkReassemblyLimit: Int?
 	private(set) var stopCount = 0
 	private(set) var thinkingLevel: String?
+	private(set) var launchedMode: AgentMode?
+	private(set) var launchCount = 0
 
 	var isRunning: Bool {
 		lock.lock()
@@ -42,7 +44,13 @@ final class FakeOmpTransport: OmpTransport, @unchecked Sendable {
 
 	// MARK: - OmpTransport
 
-	func start(workspace: URL, apiKey: String?) throws -> AsyncStream<OmpProcessEvent> {
+	func start(
+		workspace: URL,
+		apiKey: String?,
+		mode: AgentMode
+	) throws -> AsyncStream<OmpProcessEvent> {
+		launchedMode = mode
+		launchCount += 1
 		let (stream, continuation) = AsyncStream<OmpProcessEvent>.makeStream(bufferingPolicy: .unbounded)
 		lock.lock()
 		running = true

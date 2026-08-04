@@ -160,6 +160,7 @@ private final class PreviewTransport: OmpTransport, @unchecked Sendable {
 	private let lock = NSLock()
 	private var continuation: AsyncStream<OmpProcessEvent>.Continuation?
 	private var running = false
+	private(set) var launchedMode: AgentMode?
 
 	var isRunning: Bool {
 		lock.lock()
@@ -167,7 +168,12 @@ private final class PreviewTransport: OmpTransport, @unchecked Sendable {
 		return running
 	}
 
-	func start(workspace: URL, apiKey: String?) throws -> AsyncStream<OmpProcessEvent> {
+	func start(
+		workspace: URL,
+		apiKey: String?,
+		mode: AgentMode
+	) throws -> AsyncStream<OmpProcessEvent> {
+		launchedMode = mode
 		let (stream, continuation) = AsyncStream<OmpProcessEvent>.makeStream(bufferingPolicy: .unbounded)
 		lock.lock()
 		running = true

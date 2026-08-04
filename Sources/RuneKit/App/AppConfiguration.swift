@@ -65,6 +65,29 @@ public enum AppConfiguration {
 	/// would run shell commands with no confirmation at all.
 	public static let approvalMode = "write"
 
+	/// Tools kept in plan mode, as an allow-list for `omp --tools=…`.
+	///
+	/// Deliberately an allow-list: a deny-list would let any tool a future OMP
+	/// release adds default to enabled, which is the wrong failure direction
+	/// for a mode whose whole promise is "changes nothing".
+	///
+	/// Names from `omp --help` (v17.2.6). Excluded on purpose:
+	/// `write`/`edit`/`notebook` (mutate files), `bash`/`python` (execute),
+	/// `browser`/`computer` (act outside the workspace), and `task` (subagents
+	/// would run with their own, unrestricted tool set).
+	public static let planModeTools = [
+		"read",
+		"grep",
+		"glob",
+		"lsp",
+		"web_search",
+		"inspect_image",
+		"todo",
+		"ask",
+	]
+
+	public static let defaultMode = AgentMode.build
+
 	public static let protocolVersion = 2
 
 	// MARK: - Workspace
@@ -107,6 +130,7 @@ public enum AppConfiguration {
 		public static let workspacePath = "workspacePath"
 		public static let panelHeight = "panelHeight"
 		public static let cachedCommands = "cachedSlashCommands"
+		public static let mode = "agentMode"
 	}
 }
 
