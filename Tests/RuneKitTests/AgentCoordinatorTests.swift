@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import MenuAgentKit
+@testable import RuneKit
 
 @MainActor
 @Suite("Agent state machine")
@@ -12,7 +12,7 @@ struct AgentCoordinatorTests {
 		apiKey: String? = "test-key",
 		keyStore: KeyStoreSpy? = nil
 	) -> AgentCoordinator {
-		let defaults = UserDefaults(suiteName: "menuagent.tests.\(UUID().uuidString)")!
+		let defaults = UserDefaults(suiteName: "rune.tests.\(UUID().uuidString)")!
 		return AgentCoordinator(
 			transport: transport,
 			defaults: defaults,

@@ -16,6 +16,10 @@ struct ComposerView: View {
 	let onAbort: () -> Void
 	let onPaste: () -> Bool
 	let onEscape: () -> Void
+	/// Arrow keys drive the slash-command popup when it is open; returns
+	/// `true` when the keystroke was consumed there.
+	let onMoveSelection: (Int) -> Bool
+	let onCompleteSuggestion: () -> Bool
 	let onRemoveAttachment: (PendingAttachment) -> Void
 
 	@State private var height = AppConfiguration.composerMinHeight
@@ -51,7 +55,9 @@ struct ComposerView: View {
 						height: $height,
 						onSubmit: onSubmit,
 						onPaste: onPaste,
-						onEscape: onEscape
+						onEscape: onEscape,
+						onMoveSelection: onMoveSelection,
+						onCompleteSuggestion: onCompleteSuggestion
 					)
 					.frame(height: height)
 				}
@@ -160,6 +166,8 @@ private struct ComposerTextView: NSViewRepresentable {
 	/// let the text view insert plain text normally.
 	let onPaste: () -> Bool
 	let onEscape: () -> Void
+	let onMoveSelection: (Int) -> Bool
+	let onCompleteSuggestion: () -> Bool
 
 	func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -169,6 +177,8 @@ private struct ComposerTextView: NSViewRepresentable {
 		textView.onSubmit = onSubmit
 		textView.onPaste = onPaste
 		textView.onEscape = onEscape
+		textView.onMoveSelection = onMoveSelection
+		textView.onCompleteSuggestion = onCompleteSuggestion
 		textView.font = .systemFont(ofSize: 14)
 		textView.isRichText = false
 		textView.allowsUndo = true
@@ -193,6 +203,8 @@ private struct ComposerTextView: NSViewRepresentable {
 		textView.onSubmit = onSubmit
 		textView.onPaste = onPaste
 		textView.onEscape = onEscape
+		textView.onMoveSelection = onMoveSelection
+		textView.onCompleteSuggestion = onCompleteSuggestion
 		if textView.string != text {
 			let wasCleared = text.isEmpty && !textView.string.isEmpty
 			textView.string = text
@@ -242,6 +254,8 @@ final class InterceptingTextView: NSTextView {
 	var onSubmit: (() -> Void)?
 	var onPaste: (() -> Bool)?
 	var onEscape: (() -> Void)?
+	var onMoveSelection: ((Int) -> Bool)?
+	var onCompleteSuggestion: (() -> Bool)?
 
 	/// Claims focus as soon as the view has a window. `makeNSView` runs before
 	/// the panel is ordered front, so asking for first responder there would
@@ -261,6 +275,14 @@ final class InterceptingTextView: NSTextView {
 		case #selector(insertNewlineIgnoringFieldEditor(_:)):
 			// Shift+Enter — the one path that actually inserts a line break.
 			super.insertNewline(self)
+		case #selector(moveUp(_:)):
+			// Only steal the arrows while the popup is open; otherwise they
+			// must still move the caret through a multi-line draft.
+			if onMoveSelection?(-1) != true { super.doCommand(by: selector) }
+		case #selector(moveDown(_:)):
+			if onMoveSelection?(1) != true { super.doCommand(by: selector) }
+		case #selector(insertTab(_:)):
+			if onCompleteSuggestion?() != true { super.doCommand(by: selector) }
 		default:
 			super.doCommand(by: selector)
 		}

@@ -21,6 +21,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 	private var stateObservation: Task<Void, Never>?
 
 	func applicationDidFinishLaunching(_ notification: Notification) {
+		// Must come before the panel exists: without a main menu the standard
+		// edit key equivalents have no responder and every ⌘ keystroke beeps.
+		AppMenu.install()
+
 		composer.onDismiss = { [weak self] in self?.hidePanel() }
 
 		statusItem.onToggle = { [weak self] in self?.togglePanel() }

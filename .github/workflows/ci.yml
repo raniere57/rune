@@ -22,7 +22,7 @@ jobs:
 
       # The OMP integration tests skip themselves when the binary is absent,
       # so they only run where it can actually be installed. They never invoke
-      # a model — the billed test is opt-in behind MENUAGENT_LIVE_MODEL_TEST.
+      # a model — the billed test is opt-in behind RUNE_LIVE_MODEL_TEST.
       - name: Install omp
         continue-on-error: true
         run: brew install can1357/tap/omp
@@ -39,4 +39,4 @@ jobs:
       # here is informational rather than fatal.
       - name: Diagnose
         continue-on-error: true
-        run: ./build/MenuAgent.app/Contents/MacOS/MenuAgent --diagnose
+        run: ./build/Rune.app/Contents/MacOS/Rune --diagnose

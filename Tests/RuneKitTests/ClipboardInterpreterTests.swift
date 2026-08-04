@@ -3,7 +3,7 @@ import Foundation
 import Testing
 import UniformTypeIdentifiers
 
-@testable import MenuAgentKit
+@testable import RuneKit
 
 /// Scriptable pasteboard so interpretation can be tested without touching the
 /// user's real clipboard.
@@ -113,7 +113,7 @@ struct ClipboardInterpreterTests {
 	@Test("a copied file becomes a file attachment carrying its absolute path")
 	func fileAttachment() throws {
 		let url = FileManager.default.temporaryDirectory
-			.appendingPathComponent("menuagent-\(UUID().uuidString).txt")
+			.appendingPathComponent("rune-\(UUID().uuidString).txt")
 		try Data("x".utf8).write(to: url)
 		defer { try? FileManager.default.removeItem(at: url) }
 
@@ -131,7 +131,7 @@ struct ClipboardInterpreterTests {
 	@Test("a copied folder is recognised as a folder, not a file")
 	func folderAttachment() throws {
 		let url = FileManager.default.temporaryDirectory
-			.appendingPathComponent("menuagent-dir-\(UUID().uuidString)")
+			.appendingPathComponent("rune-dir-\(UUID().uuidString)")
 		try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
 		defer { try? FileManager.default.removeItem(at: url) }
 
@@ -146,7 +146,7 @@ struct ClipboardInterpreterTests {
 	@Test("several copied files all become attachments")
 	func multipleFiles() throws {
 		let directory = FileManager.default.temporaryDirectory
-			.appendingPathComponent("menuagent-multi-\(UUID().uuidString)")
+			.appendingPathComponent("rune-multi-\(UUID().uuidString)")
 		try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 		defer { try? FileManager.default.removeItem(at: directory) }
 
@@ -168,7 +168,7 @@ struct ClipboardInterpreterTests {
 	@Test("a file paste wins over the text representation Finder also provides")
 	func fileBeatsText() throws {
 		let url = FileManager.default.temporaryDirectory
-			.appendingPathComponent("menuagent-\(UUID().uuidString).txt")
+			.appendingPathComponent("rune-\(UUID().uuidString).txt")
 		try Data("x".utf8).write(to: url)
 		defer { try? FileManager.default.removeItem(at: url) }
 

@@ -1,4 +1,4 @@
-import MenuAgentKit
+import RuneKit
 
 // `--diagnose [saída.png]` builds the real status item and panel, reports their
 // geometry, and optionally renders the panel to a PNG. Useful precisely because
@@ -10,4 +10,4 @@ if arguments.contains("--diagnose") {
 	Diagnostics.run(outputPath: output)
 }
 
-MenuAgentMain.run()
+RuneMain.run()

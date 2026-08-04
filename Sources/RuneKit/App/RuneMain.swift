@@ -1,8 +1,8 @@
 import AppKit
 
 /// Entry point kept in the library so the executable target is a single line
-/// and every testable symbol lives in `MenuAgentKit`.
-public enum MenuAgentMain {
+/// and every testable symbol lives in `RuneKit`.
+public enum RuneMain {
 	@MainActor
 	public static func run() {
 		let app = NSApplication.shared

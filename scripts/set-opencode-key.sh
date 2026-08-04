@@ -6,7 +6,7 @@
 # written to disk, a dotfile, or the shell history.
 set -euo pipefail
 
-SERVICE="dev.raniere.MenuAgent"
+SERVICE="dev.raniere.Rune"
 ACCOUNT="opencode-api-key"
 
 printf 'Chave do OpenCode Zen (OPENCODE_API_KEY): '

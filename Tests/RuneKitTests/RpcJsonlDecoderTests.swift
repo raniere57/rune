@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import MenuAgentKit
+@testable import RuneKit
 
 @Suite("JSONL framing")
 struct RpcJsonlDecoderTests {

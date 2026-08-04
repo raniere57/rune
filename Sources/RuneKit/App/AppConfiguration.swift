@@ -7,13 +7,13 @@ public enum AppConfiguration {
 	// MARK: - Identity
 
 	/// Provisional product name. Change here to rename the whole app.
-	public static let appName = "MenuAgent"
+	public static let appName = "Rune"
 
-	public static let bundleIdentifier = "dev.raniere.MenuAgent"
+	public static let bundleIdentifier = "dev.raniere.Rune"
 
 	// MARK: - Keychain
 
-	public static let keychainService = "dev.raniere.MenuAgent"
+	public static let keychainService = "dev.raniere.Rune"
 	public static let keychainAccount = "opencode-api-key"
 
 	/// Environment variable OMP reads for OpenCode Zen / OpenCode Go auth.
@@ -106,6 +106,7 @@ public enum AppConfiguration {
 		public static let lastSessionFile = "lastSessionFile"
 		public static let workspacePath = "workspacePath"
 		public static let panelHeight = "panelHeight"
+		public static let cachedCommands = "cachedSlashCommands"
 	}
 }
 

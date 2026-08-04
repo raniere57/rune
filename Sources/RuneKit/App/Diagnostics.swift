@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// `MenuAgent --diagnose [saída.png]`
+/// `Rune --diagnose [saída.png]`
 ///
 /// A menu bar app has no window to look at and is excluded from most app
 /// enumerations, so "is it actually running?" is otherwise hard to answer.
@@ -17,8 +17,14 @@ public enum Diagnostics {
 		// activation and key-window handoff silently no-op and the report would
 		// understate what a real launch does.
 		app.finishLaunching()
+		AppMenu.install()
 
 		let report = Report()
+		report.section("menu")
+		let editActions = AppMenu.installedEditActions
+		report.line("edit key equivalents", editActions.isEmpty ? "MISSING — ⌘V vai apitar" : "\(editActions.count)")
+		for action in editActions { report.line("", action) }
+
 		report.section("status item")
 
 		let statusItem = StatusItemController()
@@ -30,7 +36,7 @@ public enum Diagnostics {
 		let transport = PreviewTransport()
 		let coordinator = AgentCoordinator(
 			transport: transport,
-			defaults: UserDefaults(suiteName: "menuagent.diagnose") ?? .standard,
+			defaults: UserDefaults(suiteName: "rune.diagnose") ?? .standard,
 			idleInterval: 3600,
 			apiKeyProvider: { "diagnose-placeholder" }
 		)
@@ -59,12 +65,15 @@ public enum Diagnostics {
 			composer.text = "por que a sessão cai depois de 1h?"
 			composer.submit()
 			try? await Task.sleep(for: .milliseconds(150))
-			// `MENUAGENT_DIAGNOSE_BUSY=1` stops the replay before `agent_end`,
+			// `RUNE_DIAGNOSE_BUSY=1` stops the replay before `agent_end`,
 			// so the render captures the running state — abort button visible,
 			// send acting as steer.
-			let stayBusy = ProcessInfo.processInfo.environment["MENUAGENT_DIAGNOSE_BUSY"] == "1"
+			let environment = ProcessInfo.processInfo.environment
+			let stayBusy = environment["RUNE_DIAGNOSE_BUSY"] == "1"
 			transport.replayScriptedTurn(settle: !stayBusy)
 			if stayBusy { composer.text = "na verdade, confere também o refresh token" }
+			// `RUNE_DIAGNOSE_SLASH=/co` renders the command popup for that query.
+			if let query = environment["RUNE_DIAGNOSE_SLASH"] { composer.text = query }
 			try? await Task.sleep(for: .milliseconds(600))
 			finish(report: report, panel: panel, coordinator: coordinator, outputPath: outputPath)
 		}
@@ -98,6 +107,10 @@ public enum Diagnostics {
 		line("model", coordinator.activeModelDescription ?? "—")
 		line("effort", coordinator.thinkingLevel ?? "—")
 		line("items", coordinator.items.count)
+
+		report.section("comandos")
+		line("conhecidos", coordinator.availableCommands.count)
+		line("locais", coordinator.availableCommands.filter { $0.source == .local }.count)
 
 		report.section("shortcut")
 		let hotKey = GlobalHotKeyController()
@@ -164,6 +177,7 @@ private final class PreviewTransport: OmpTransport, @unchecked Sendable {
 		{"type":"ready","protocolVersion":1,"supportedProtocolVersions":[1,2],\
 		"maxFrameBytes":1048576,"maxReassembledFrameBytes":67108864}
 		""")
+		emit(Self.availableCommandsFrame)
 		return stream
 	}
 
@@ -188,6 +202,11 @@ private final class PreviewTransport: OmpTransport, @unchecked Sendable {
 		case .setModel:
 			emit("""
 			{\(identifier)"type":"response","command":"set_model","success":true,"data":\(model)}
+			""")
+		case .getMessagesPage:
+			emit("""
+			{\(identifier)"type":"response","command":"get_messages_page","success":true,\
+			"data":{"messages":[],"totalMessages":0}}
 			""")
 		case .getState:
 			emit("""
@@ -232,6 +251,22 @@ private final class PreviewTransport: OmpTransport, @unchecked Sendable {
 		lock.unlock()
 		continuation?.yield(.frame(RpcFrame.make(from: value)))
 	}
+
+	/// A slice of the real `available_commands_update` payload, so `--diagnose`
+	/// renders the popup with the same shape a live session produces.
+	private static let availableCommandsFrame = """
+	{"type":"available_commands_update","commands":[\
+	{"name":"compact","description":"Compact the conversation"},\
+	{"name":"context","description":"Show context usage"},\
+	{"name":"code-review","description":"Code review — local changes or GitHub PR"},\
+	{"name":"cost-report","description":"Generate a local cost report"},\
+	{"name":"computer","description":"Toggle computer use"},\
+	{"name":"usage","description":"Show token usage"},\
+	{"name":"model","description":"Show current model selection"},\
+	{"name":"vision","description":"Toggle vision delegation"},\
+	{"name":"tools","description":"Show available tools"},\
+	{"name":"export","description":"Export session to HTML file"}]}
+	"""
 
 	private static let scriptedFrames: [String] = [
 		#"{"type":"agent_start"}"#,

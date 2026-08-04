@@ -2,26 +2,26 @@
 import PackageDescription
 
 let package = Package(
-	name: "MenuAgent",
+	name: "Rune",
 	platforms: [.macOS(.v14)],
 	products: [
-		.executable(name: "MenuAgent", targets: ["MenuAgent"]),
-		.library(name: "MenuAgentKit", targets: ["MenuAgentKit"]),
+		.executable(name: "Rune", targets: ["Rune"]),
+		.library(name: "RuneKit", targets: ["RuneKit"]),
 	],
 	targets: [
 		.executableTarget(
-			name: "MenuAgent",
-			dependencies: ["MenuAgentKit"],
-			path: "Sources/MenuAgent"
+			name: "Rune",
+			dependencies: ["RuneKit"],
+			path: "Sources/Rune"
 		),
 		.target(
-			name: "MenuAgentKit",
-			path: "Sources/MenuAgentKit"
+			name: "RuneKit",
+			path: "Sources/RuneKit"
 		),
 		.testTarget(
-			name: "MenuAgentKitTests",
-			dependencies: ["MenuAgentKit"],
-			path: "Tests/MenuAgentKitTests"
+			name: "RuneKitTests",
+			dependencies: ["RuneKit"],
+			path: "Tests/RuneKitTests"
 		),
 	]
 )

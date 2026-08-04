@@ -1,6 +1,6 @@
 #!/usr/bin/env swift
 //
-// Generates MenuAgent's app icon as an .icns.
+// Generates Rune's app icon as an .icns.
 //
 // Drawn in code rather than committed as binary art: the mark is a handful of
 // strokes, so a generator keeps the repo text-only and lets the palette be
@@ -173,10 +173,10 @@ func png(_ image: NSImage, pixels: Int) -> Data {
 
 let output = CommandLine.arguments.count > 1
 	? URL(fileURLWithPath: CommandLine.arguments[1])
-	: URL(fileURLWithPath: "build/MenuAgent.icns")
+	: URL(fileURLWithPath: "build/Rune.icns")
 
 let iconset = FileManager.default.temporaryDirectory
-	.appendingPathComponent("MenuAgent-\(UUID().uuidString).iconset")
+	.appendingPathComponent("Rune-\(UUID().uuidString).iconset")
 try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
 defer { try? FileManager.default.removeItem(at: iconset) }
 

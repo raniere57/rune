@@ -54,13 +54,13 @@ jobs:
 
           ### Instalação
 
-          1. Baixe o `.dmg`, abra e arraste `MenuAgent.app` para `Applications`.
+          1. Baixe o `.dmg`, abra e arraste `Rune.app` para `Applications`.
           2. O app é assinado ad-hoc, então o Gatekeeper bloqueia a primeira
              abertura. Libere em **Ajustes do Sistema › Privacidade e Segurança
              › Abrir Assim Mesmo**, ou rode:
 
              ```bash
-             xattr -dr com.apple.quarantine /Applications/MenuAgent.app
+             xattr -dr com.apple.quarantine /Applications/Rune.app
              ```
 
           3. Instale o runtime do agente: `brew install can1357/tap/omp`
@@ -74,16 +74,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ steps.version.outputs.tag }}"
-          DMG="build/MenuAgent-${{ steps.version.outputs.version }}.dmg"
+          DMG="build/Rune-${{ steps.version.outputs.version }}.dmg"
           # Idempotent: a re-run of a failed job must update the existing
           # release instead of erroring out on a duplicate tag.
           if gh release view "${TAG}" >/dev/null 2>&1; then
             gh release edit "${TAG}" \
-              --title "MenuAgent ${TAG}" \
+              --title "Rune ${TAG}" \
               --notes-file "${{ steps.notes.outputs.path }}"
             gh release upload "${TAG}" "${DMG}" --clobber
           else
             gh release create "${TAG}" "${DMG}" \
-              --title "MenuAgent ${TAG}" \
+              --title "Rune ${TAG}" \
               --notes-file "${{ steps.notes.outputs.path }}"
           fi

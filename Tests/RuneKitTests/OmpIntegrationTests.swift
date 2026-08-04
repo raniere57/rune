@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import MenuAgentKit
+@testable import RuneKit
 
 /// Exercises the real `omp` binary over stdio.
 ///
@@ -9,7 +9,7 @@ import Testing
 /// the catalogue, and `set_model`, all of which are local. `OPENCODE_API_KEY`
 /// is set to a placeholder purely so the provider's catalogue is listed —
 /// nothing is billed. The one test that would spend money is gated behind
-/// `MENUAGENT_LIVE_MODEL_TEST=1`.
+/// `RUNE_LIVE_MODEL_TEST=1`.
 @MainActor
 @Suite(
 	"OMP integration",
@@ -113,7 +113,7 @@ struct OmpIntegrationTests {
 
 	@Test("the coordinator boots against the real binary", .timeLimit(.minutes(1)))
 	func coordinatorBoot() async throws {
-		let defaults = UserDefaults(suiteName: "menuagent.integration.\(UUID().uuidString)")!
+		let defaults = UserDefaults(suiteName: "rune.integration.\(UUID().uuidString)")!
 		let coordinator = AgentCoordinator(
 			transport: LiveOmpTransport(),
 			defaults: defaults,
@@ -133,7 +133,7 @@ struct OmpIntegrationTests {
 
 	@Test(
 		"a real model turn (billed — opt-in)",
-		.enabled(if: ProcessInfo.processInfo.environment["MENUAGENT_LIVE_MODEL_TEST"] == "1"),
+		.enabled(if: ProcessInfo.processInfo.environment["RUNE_LIVE_MODEL_TEST"] == "1"),
 		.timeLimit(.minutes(3))
 	)
 	func liveModelTurn() async throws {
@@ -141,7 +141,7 @@ struct OmpIntegrationTests {
 			KeychainStore.readIfPresent(),
 			"store a key first: ./scripts/set-opencode-key.sh"
 		)
-		let defaults = UserDefaults(suiteName: "menuagent.live.\(UUID().uuidString)")!
+		let defaults = UserDefaults(suiteName: "rune.live.\(UUID().uuidString)")!
 		let coordinator = AgentCoordinator(
 			transport: LiveOmpTransport(),
 			defaults: defaults,

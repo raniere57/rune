@@ -82,17 +82,38 @@ public struct ConversationView: View {
 
 	private var composerSection: some View {
 		VStack(alignment: .leading, spacing: 6) {
+			if composer.isSuggesting {
+				SlashSuggestionsView(
+					suggestions: composer.suggestions,
+					selectedIndex: composer.selectedSuggestion,
+					onSelect: { composer.select($0) }
+				)
+				.transition(.opacity.combined(with: .move(edge: .bottom)))
+			}
+
 			ComposerView(
 				text: $composer.text,
 				attachments: composer.attachments,
 				placeholder: placeholder,
 				isBusy: coordinator.isBusy,
-				onSubmit: { composer.submit() },
+				// Enter and Esc are shared with the suggestion popup: while it
+				// is open they act on the list, and only fall through to
+				// send/close once it is not.
+				onSubmit: {
+					if composer.acceptSuggestion() { return }
+					composer.submit()
+				},
 				onAbort: { composer.abort() },
 				onPaste: { composer.handlePaste() },
-				onEscape: { composer.dismiss() },
+				onEscape: {
+					if composer.dismissSuggestions() { return }
+					composer.dismiss()
+				},
+				onMoveSelection: { composer.moveSelection(by: $0) },
+				onCompleteSuggestion: { composer.acceptSuggestion() },
 				onRemoveAttachment: { composer.remove($0) }
 			)
+			.animation(.easeOut(duration: 0.12), value: composer.isSuggesting)
 
 			if let hint = statusHint {
 				Text(hint)
@@ -126,15 +147,28 @@ public struct ConversationView: View {
 		return turn.text.count
 	}
 
-	private static let bottomAnchor = "menuagent.bottom"
+	private static let bottomAnchor = "rune.bottom"
 }
 
 /// Composer-local state and the actions the text view triggers.
 @MainActor
 @Observable
 public final class ComposerModel {
-	public var text = ""
+	public var text = "" {
+		didSet { refreshSuggestions() }
+	}
+
 	public private(set) var attachments: [PendingAttachment] = []
+
+	/// Slash commands matching what has been typed so far. Empty means the
+	/// popup is closed.
+	public private(set) var suggestions: [SlashCommand] = []
+	public private(set) var selectedSuggestion = 0
+	/// Set when the user dismissed the popup with Esc, so it does not pop back
+	/// on the next keystroke of the same word.
+	private var suggestionsDismissed = false
+
+	public var isSuggesting: Bool { !suggestions.isEmpty }
 
 	private let coordinator: AgentCoordinator
 	private let interpreter = ClipboardInterpreter()
@@ -156,7 +190,58 @@ public final class ComposerModel {
 		guard !payload.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !staged.isEmpty else { return }
 		text = ""
 		attachments = []
+		suggestions = []
+		suggestionsDismissed = false
 		Task { await coordinator.submit(text: payload, attachments: staged) }
+	}
+
+	// MARK: - Slash suggestions
+
+	/// Suggestions appear while the command word itself is being typed. Once a
+	/// space is entered the user has moved on to the argument, so the list gets
+	/// out of the way.
+	private func refreshSuggestions() {
+		guard text.hasPrefix("/"), !text.contains(" "), !text.contains("\n") else {
+			suggestions = []
+			suggestionsDismissed = false
+			return
+		}
+		guard !suggestionsDismissed else { return }
+
+		let query = String(text.dropFirst())
+		suggestions = SlashCommand.matches(query, in: coordinator.availableCommands)
+		selectedSuggestion = 0
+	}
+
+	/// Returns `true` when the keystroke was consumed by the popup.
+	public func moveSelection(by delta: Int) -> Bool {
+		guard isSuggesting else { return false }
+		let count = suggestions.count
+		selectedSuggestion = (selectedSuggestion + delta % count + count) % count
+		return true
+	}
+
+	public func acceptSuggestion() -> Bool {
+		guard isSuggesting, suggestions.indices.contains(selectedSuggestion) else { return false }
+		let command = suggestions[selectedSuggestion]
+		suggestions = []
+		// Assigning `text` re-enters `refreshSuggestions`, which closes the
+		// popup on its own because the completion ends in a space.
+		text = command.completion
+		return true
+	}
+
+	public func select(_ command: SlashCommand) {
+		suggestions = []
+		text = command.completion
+	}
+
+	/// Returns `true` when Esc closed the popup rather than the panel.
+	public func dismissSuggestions() -> Bool {
+		guard isSuggesting else { return false }
+		suggestions = []
+		suggestionsDismissed = true
+		return true
 	}
 
 	/// Returns `true` when the paste became an attachment and the text view

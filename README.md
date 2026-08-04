@@ -1,4 +1,4 @@
-# MenuAgent
+# Rune
 
 Interface gráfica nativa e mínima para o agente de desenvolvimento
 [Oh My Pi (`omp`)](https://github.com/can1357/oh-my-pi), no estilo Spotlight,
@@ -10,7 +10,7 @@ arquivos, LSP, subagentes, memória e compactação — continua dentro do `omp`
 falando JSONL por stdin/stdout.
 
 ```text
-MenuAgent.app  (Swift · SwiftUI · AppKit)
+Rune.app  (Swift · SwiftUI · AppKit)
       │
       │ JSONL via stdin/stdout
       ▼
@@ -84,42 +84,42 @@ Alternativa pelo terminal:
 ```
 
 O script lê a chave sem ecoar e grava no Keychain
-(serviço `dev.raniere.MenuAgent`, conta `opencode-api-key`). A chave nunca vai
+(serviço `dev.raniere.Rune`, conta `opencode-api-key`). A chave nunca vai
 para o código, Git, plist, `UserDefaults`, logs ou mensagens de erro — o app só
 a injeta no ambiente do processo filho `omp`.
 
 Para remover:
 
 ```bash
-security delete-generic-password -a opencode-api-key -s dev.raniere.MenuAgent
+security delete-generic-password -a opencode-api-key -s dev.raniere.Rune
 ```
 
 ### 3. Instalar o app
 
 Baixe o `.dmg` mais recente em
 [Releases](https://github.com/raniere57/rune/releases), abra e arraste
-`MenuAgent.app` para `Applications`.
+`Rune.app` para `Applications`.
 
 Ou construa localmente:
 
 ```bash
 ./scripts/build-dmg.sh
-open "build/MenuAgent-$(cat VERSION).dmg"
+open "build/Rune-$(cat VERSION).dmg"
 ```
 
 Como a assinatura é ad-hoc, o Gatekeeper bloqueia a primeira abertura — libere
 em **Ajustes do Sistema › Privacidade e Segurança › Abrir Assim Mesmo**, ou:
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/MenuAgent.app
+xattr -dr com.apple.quarantine /Applications/Rune.app
 ```
 
 Ou direto, sem `.dmg`:
 
 ```bash
 ./scripts/build-app.sh release
-cp -R build/MenuAgent.app /Applications/
-open /Applications/MenuAgent.app
+cp -R build/Rune.app /Applications/
+open /Applications/Rune.app
 ```
 
 ---
@@ -140,10 +140,12 @@ da runa Algiz (ᛉ).
 | Abortar a execução | `⌘.`, ou o botão quadrado vermelho (só aparece durante a execução) |
 | Copiar a última resposta | `⌘C` sem seleção |
 | Colar | `⌘V` — texto, imagem, arquivo ou pasta |
+| Lista de comandos | digite `/` — `↑↓` navega, `⇥`/`Enter` completa, `Esc` fecha |
 
 ### Comandos internos
 
-Digitados no próprio campo, sem menus:
+Digite `/` e a lista aparece acima do campo, já filtrando enquanto você escreve.
+Os cinco comandos do app vêm primeiro (marcados com `app`); o resto é do `omp`.
 
 ```text
 /key sk-suachave          grava a chave do OpenCode Zen no Keychain
@@ -161,8 +163,8 @@ Qualquer `/comando` que não seja um dos acima é **encaminhado ao `omp`**, que
 tem os seus próprios — 133 na instalação de referência, incluindo `/compact`,
 `/context`, `/usage`, `/model`, `/tools`, `/todo`, `/export`, `/share`,
 `/rename`, `/add-dir`, `/mcp`, `/memory`, `/jobs`, `/vision` e as skills em
-`/skill:*`. Rode `/help` ou consulte a documentação do `omp` para a lista da sua
-instalação.
+`/skill:*`. A lista do `/` mostra os da sua instalação, e fica em cache para
+aparecer completa mesmo com o `omp` desligado.
 
 ### Colar
 
@@ -184,7 +186,7 @@ Um app de barra de menus não tem janela para inspecionar de fora. Para provar
 que está tudo montado:
 
 ```bash
-/Applications/MenuAgent.app/Contents/MacOS/MenuAgent --diagnose saida.png
+/Applications/Rune.app/Contents/MacOS/Rune --diagnose saida.png
 ```
 
 Constrói o item de status e o painel de verdade, roda o handshake real,
@@ -197,13 +199,14 @@ o painel em PNG.
 
 ```text
 Sources/
-├── MenuAgent/                    executável (3 linhas)
-└── MenuAgentKit/
+├── Rune/                    executável (3 linhas)
+└── RuneKit/
     ├── App/
     │   ├── AppConfiguration.swift   provedor, modelo, effort, atalho, timings
     │   ├── AppDelegate.swift        amarra menu bar + painel + atalho
+    │   ├── AppMenu.swift            menu invisível que dá ⌘X/⌘C/⌘V/⌘A/⌘Z
     │   ├── Diagnostics.swift        --diagnose
-    │   └── MenuAgentMain.swift
+    │   └── RuneMain.swift
     ├── MenuBar/
     │   ├── StatusItemController.swift
     │   ├── FloatingPanel.swift      NSPanel borderless, flutuante
@@ -235,9 +238,11 @@ Sources/
     │   ├── ToolCallView.swift       recolhido por padrão
     │   ├── DiffView.swift
     │   ├── ExtensionRequestView.swift
+    │   ├── SlashSuggestionsView.swift  lista de comandos do `/`
     │   └── MarkdownBlock.swift
     └── Models/
         ├── ConversationItem.swift
+        ├── SlashCommand.swift
         ├── ToolSummaryFormatter.swift
         ├── DiffParser.swift
         └── Workspace.swift
@@ -269,6 +274,17 @@ alta de linhas `+`/`-`, para que um bloco de código não vire um patch falso.
 **Trocar de workspace reinicia o `omp`.** O cwd é resolvido no lançamento e não
 pode ser movido em um processo vivo; carregar a sessão antiga para outra raiz
 resolveria todo caminho relativo errado.
+
+**Um menu principal invisível.** Um app `.accessory` não mostra menu bar, o que
+convida a não criar nenhum — mas `⌘X`/`⌘C`/`⌘V`/`⌘A`/`⌘Z` não são embutidos no
+`NSTextView`: são *key equivalents de menu*. Sem `NSApp.mainMenu`, nada responde
+por `paste:` e o macOS toca o som de erro. O menu é invisível, mas obrigatório.
+
+**Layout do `.dmg` congelado em arquivo.** Posicionar os ícones da janela exige
+dirigir o Finder por AppleScript, que precisa de sessão gráfica e permissão de
+Automação — nenhuma das duas existe num runner de CI. O layout ficava correto na
+máquina local e saía cru em toda release publicada. Agora vem de
+`packaging/dmg-DS_Store`, versionado; `scripts/capture-dmg-layout.sh` regenera.
 
 **Idle shutdown com um timer único.** Um `DispatchSourceTimer` agendado para o
 deadline, reagendado a cada atividade. Sem polling — app ocioso não agenda
@@ -366,16 +382,16 @@ exige.
 swift build -c release
 
 # critério de aceite: xcodebuild
-xcodebuild -scheme MenuAgent -destination 'platform=macOS,arch=arm64' -configuration Release build
+xcodebuild -scheme Rune -destination 'platform=macOS,arch=arm64' -configuration Release build
 
-# gerar MenuAgent.app
+# gerar Rune.app
 ./scripts/build-app.sh release
 
 # gerar o .dmg
 ./scripts/build-dmg.sh
 
 # só o ícone
-swift scripts/make-icon.swift build/MenuAgent.icns
+swift scripts/make-icon.swift build/Rune.icns
 ```
 
 O projeto é um pacote SwiftPM; `xcodebuild` opera direto sobre ele. O
@@ -397,7 +413,7 @@ constante.
 swift test
 ```
 
-**66 testes, 6 suítes.** Nenhum gasta token.
+**91 testes, 8 suítes.** Nenhum gasta token.
 
 | Suíte | Cobre |
 |---|---|
@@ -421,7 +437,7 @@ listado. São pulados automaticamente se o `omp` não estiver instalado.
 O único teste que gastaria dinheiro é opt-in:
 
 ```bash
-MENUAGENT_LIVE_MODEL_TEST=1 swift test --filter "real model turn"
+RUNE_LIVE_MODEL_TEST=1 swift test --filter "real model turn"
 ```
 
 ---
@@ -450,7 +466,7 @@ Reproduzir:
 
 ```bash
 # RAM e CPU do app
-ps -Ao pid,rss,pcpu,comm | grep MenuAgent
+ps -Ao pid,rss,pcpu,comm | grep Rune
 
 # árvore do omp
 pgrep -f "omp --mode rpc-ui" | xargs ps -o pid,rss,pcpu -p

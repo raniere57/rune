@@ -1,6 +1,6 @@
 import Foundation
 
-@testable import MenuAgentKit
+@testable import RuneKit
 
 /// In-memory stand-in for the `omp` child process.
 ///
@@ -21,7 +21,7 @@ final class FakeOmpTransport: OmpTransport, @unchecked Sendable {
 	/// Reasoning efforts the fake model advertises, mirroring the real catalogue.
 	var modelEfforts: [String] = ["high", "max"]
 	var modelInputs: [String] = ["text"]
-	var sessionFile = "/tmp/menuagent-test/session.jsonl"
+	var sessionFile = "/tmp/rune-test/session.jsonl"
 	private(set) var chunkReassemblyLimit: Int?
 	private(set) var stopCount = 0
 	private(set) var thinkingLevel: String?

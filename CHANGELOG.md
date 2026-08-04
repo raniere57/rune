@@ -8,6 +8,44 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
 
 ## [Não publicado]
 
+## [0.3.0] — 2026-08-04
+
+### Alterado
+
+- **O app agora se chama Rune.** `MenuAgent` era provisório e não era o nome que
+  ninguém digitava no Spotlight — buscar por "rune" não achava nada. Renomeados
+  o bundle (`dev.raniere.Rune`), o executável, os módulos (`RuneKit`), o
+  serviço do Keychain e os artefatos (`Rune-x.y.z.dmg`).
+
+  > Quem já tinha chave gravada com o nome antigo precisa regravar com
+  > `/key sk-…`; o serviço do Keychain mudou junto.
+
+### Corrigido
+
+- **`⌘V`, `⌘C`, `⌘X`, `⌘A` e `⌘Z` não funcionavam** — qualquer atalho com ⌘
+  tocava o som de erro. Um app `.accessory` não mostra menu bar, mas essas
+  combinações são *key equivalents de menu*, não teclas embutidas no
+  `NSTextView`: sem `NSApp.mainMenu` nada responde por `paste:`. Agora existe um
+  menu principal invisível com o menu Editar.
+- **Janela do `.dmg` sem layout e com `.fseventsd` à mostra.** Duas causas: o
+  posicionamento dependia de AppleScript, que precisa de Finder e não existe no
+  runner de CI, então toda release saía crua; e a imagem era montada como
+  leitura/escrita antes de ser comprimida, o que fazia o sistema gravar
+  `.fseventsd` dentro dela. Agora o layout vem de `packaging/dmg-DS_Store`
+  versionado e a imagem é gerada direto em UDZO, sem montar.
+
+### Adicionado
+
+- **Lista de comandos ao digitar `/`.** Filtra enquanto se escreve, `↑↓` navega,
+  `⇥` ou `Enter` completa, `Esc` fecha. Os cinco comandos do app vêm primeiro,
+  marcados com `app`; o resto vem do `available_commands_update` do `omp` (133
+  na instalação de referência) e fica em cache, então a lista aparece completa
+  mesmo com o `omp` desligado.
+- `scripts/capture-dmg-layout.sh`, que regenera o layout congelado do `.dmg`.
+- `RUNE_DIAGNOSE_SLASH=/co` renderiza a lista de comandos no `--diagnose`.
+- 19 testes novos (91 no total) para ranqueamento de comandos e comportamento
+  da lista.
+
 ## [0.2.0] — 2026-08-04
 
 ### Adicionado
@@ -20,7 +58,7 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
   abortar interrompe.
 - Ambos com estados de hover e pressionado desenhados, tooltip e rótulo de
   acessibilidade.
-- `MENUAGENT_DIAGNOSE_BUSY=1` faz o `--diagnose` parar antes do `agent_end`,
+- `RUNE_DIAGNOSE_BUSY=1` faz o `--diagnose` parar antes do `agent_end`,
   para renderizar o estado em execução.
 
 ### Alterado
@@ -85,6 +123,7 @@ Primeira versão. GUI nativa mínima para o `omp`, na barra de menus.
   testado; falta rotear para um modelo de visão.
 - Assinatura ad-hoc — o Gatekeeper bloqueia na primeira abertura.
 
-[Não publicado]: https://github.com/raniere57/rune/compare/v0.2.0...HEAD
+[Não publicado]: https://github.com/raniere57/rune/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/raniere57/rune/releases/tag/v0.3.0
 [0.2.0]: https://github.com/raniere57/rune/releases/tag/v0.2.0
 [0.1.0]: https://github.com/raniere57/rune/releases/tag/v0.1.0

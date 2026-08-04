@@ -20,6 +20,9 @@ public final class AgentCoordinator {
 	public private(set) var activeModelDescription: String?
 	public private(set) var thinkingLevel: String?
 	public private(set) var contextPercent: Double?
+	/// Local commands plus whatever OMP last advertised. Cached across runs so
+	/// the `/` list is complete before the process has even started.
+	public private(set) var availableCommands: [SlashCommand] = SlashCommand.local
 	public private(set) var modelSupportsImages = false
 
 	public var hasConversation: Bool { !items.isEmpty }
@@ -73,6 +76,7 @@ public final class AgentCoordinator {
 			self.workspace = .default
 		}
 		self.sessionFile = defaults.string(forKey: AppConfiguration.DefaultsKey.lastSessionFile)
+		loadCachedCommands()
 	}
 
 	// MARK: - Public intent
@@ -669,7 +673,10 @@ public final class AgentCoordinator {
 				if !runState.isBusy { runState = .ready }
 			}
 
-		case .availableCommands, .commandOutput, .subagent, .unknown:
+		case .availableCommands(let commands):
+			store(ompCommands: commands)
+
+		case .commandOutput, .subagent, .unknown:
 			break
 
 		case .extensionError(let path, let event, let message):
@@ -822,6 +829,40 @@ public final class AgentCoordinator {
 	private func handleStreamEnd() {
 		consumeTask = nil
 		if runState.isRunning, !transport.isRunning { runState = .stopped }
+	}
+
+	// MARK: - Slash commands
+
+	/// Merges OMP's advertised commands with the local ones and caches them.
+	///
+	/// A local command always wins a name collision: `/new` and `/status` exist
+	/// on both sides, and the app's own handling is what actually runs.
+	private func store(ompCommands: [RpcSlashCommand]) {
+		let localNames = Set(SlashCommand.local.map(\.name))
+		let forwarded = ompCommands
+			.filter { !localNames.contains($0.name) }
+			.map {
+				SlashCommand(
+					name: $0.name,
+					summary: $0.description ?? "",
+					source: .omp
+				)
+			}
+
+		let merged = SlashCommand.local + forwarded
+		guard merged != availableCommands else { return }
+		availableCommands = merged
+
+		if let data = try? JSONEncoder().encode(forwarded) {
+			defaults.set(data, forKey: AppConfiguration.DefaultsKey.cachedCommands)
+		}
+	}
+
+	private func loadCachedCommands() {
+		guard let data = defaults.data(forKey: AppConfiguration.DefaultsKey.cachedCommands),
+		      let cached = try? JSONDecoder().decode([SlashCommand].self, from: data)
+		else { return }
+		availableCommands = SlashCommand.local + cached
 	}
 
 	// MARK: - Conversation mutation

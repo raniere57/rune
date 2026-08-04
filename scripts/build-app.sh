@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Builds MenuAgent.app from the SwiftPM executable.
+# Builds Rune.app from the SwiftPM executable.
 #
 # SwiftPM emits a bare binary; this wraps it in the minimal bundle macOS needs
 # for a menu bar app (LSUIElement, bundle identifier, icon slot). The app also
@@ -12,8 +12,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CONFIGURATION="${1:-release}"
-APP_NAME="MenuAgent"
-BUNDLE_ID="dev.raniere.MenuAgent"
+APP_NAME="Rune"
+BUNDLE_ID="dev.raniere.Rune"
 VERSION="$(cat VERSION)"
 
 echo "==> swift build -c ${CONFIGURATION}"
