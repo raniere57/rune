@@ -1,16 +1,44 @@
+<div align="center">
+
+<img src="docs/icon.png" width="132" alt="Rune">
+
 # Rune
 
-Interface gráfica nativa e mínima para o agente de desenvolvimento
-[Oh My Pi (`omp`)](https://github.com/can1357/oh-my-pi), no estilo Spotlight,
-morando na barra de menus do macOS.
+**Um agente de código que mora na barra de menus do macOS.**
+Nativo, minúsculo, e — com o modelo certo — de graça.
 
-O app **não é um agente**. Ele é apenas o host gráfico e o gerenciador de
-processo. Todo o trabalho — modelo, sessões, ferramentas, shell, Git, edição de
-arquivos, LSP, subagentes, memória e compactação — continua dentro do `omp`,
-falando JSONL por stdin/stdout.
+[![Release](https://img.shields.io/github/v/release/raniere57/rune?style=flat-square&color=6f42c1)](https://github.com/raniere57/rune/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/raniere57/rune/ci.yml?branch=main&style=flat-square)](https://github.com/raniere57/rune/actions)
+[![macOS](https://img.shields.io/badge/macOS-14%2B-black?style=flat-square)](#instalação)
+[![Swift](https://img.shields.io/badge/Swift-6-orange?style=flat-square)](Package.swift)
+
+[Baixar](https://github.com/raniere57/rune/releases/latest) ·
+[Instalação](#instalação) ·
+[Uso](#uso) ·
+[Arquitetura](#arquitetura)
+
+</div>
+
+![Painel](docs/panel.png)
+
+---
+
+## A ideia
+
+Rune é a junção de três coisas que já existem e são boas — sem reinventar
+nenhuma delas:
+
+| | |
+|---|---|
+| 🪟 **A interface do macOS** | `NSStatusItem` + `NSPanel` + SwiftUI. Sem Electron, sem WebView, sem servidor local. O app inteiro tem 2,7 MB e não aparece no Dock. |
+| 🧠 **[Oh My Pi](https://github.com/can1357/oh-my-pi)** | O agente de verdade: ferramentas, sessões, shell, Git, edição por hash, LSP, subagentes, memória, compactação. Rune não reimplementa nada disso. |
+| 💸 **[OpenCode Zen](https://opencode.ai)** | O provedor. Com `deepseek-v4-flash-free` o custo por token é **zero** — 200K de contexto, effort `max`, sem cartão. |
+
+O app **não é um agente**. É o host gráfico e o gerente de processo. Todo o
+trabalho acontece dentro do `omp`, que fala JSONL por stdin/stdout:
 
 ```text
-Rune.app  (Swift · SwiftUI · AppKit)
+Rune.app  (Swift · SwiftUI · AppKit · zero dependências)
       │
       │ JSONL via stdin/stdout
       ▼
@@ -22,14 +50,20 @@ omp --mode rpc-ui --approval-mode write
       └── subagentes · memória · compactação
 ```
 
-<img src="docs/icon.png" width="128" align="right" alt="Ícone">
+Essa separação é a decisão de projeto mais importante do repositório. Ela é o
+motivo de o app caber em ~4 mil linhas de Swift e de continuar funcionando
+quando o `omp` ganha uma ferramenta nova: ela simplesmente aparece.
 
-![Painel](docs/panel.png)
+**`Control + Option + Espaço`** em qualquer lugar do sistema, escreve, `Enter`.
+Fecha com `Esc` — a tarefa continua rodando.
+
+---
 
 ---
 
 ## Índice
 
+- [A ideia](#a-ideia)
 - [Instalação](#instalação)
 - [Uso](#uso)
 - [Arquitetura](#arquitetura)
@@ -496,18 +530,22 @@ Metodologia: cada número vem do processo real; nada é estimado.
 
 | Métrica | Medido | Meta |
 |---|---|---|
-| Lançamento do app | **109–203 ms** (3 execuções) | — |
-| Abertura do painel | instantânea — o painel é construído uma vez e só é ordenado à frente | visualmente instantânea |
-| RAM: app aberto, `omp` desligado | **23–25 MB** (43 MB no pico do lançamento, assenta em ~10 s) | < 50 MB |
-| RAM: `omp` iniciado e ocioso | **241 MB** (`omp`) + 15 MB (servidor MCP configurado pelo usuário) | — |
-| RAM durante tarefa simples | **não medido** — exige um turno faturado | — |
-| CPU ocioso | **0,0 %** — 0,17 s de CPU acumulada em 57 s de vida | ~0 % |
+| Lançamento do app | **150 ms** | — |
+| Abertura do painel | instantânea — construído uma vez, depois só ordenado à frente | visualmente instantânea |
+| RAM: app ocioso, `omp` desligado | **54 MB** | < 50 MB ⚠️ |
+| RAM: `omp` iniciado e ocioso | **241 MB** (`omp`) + 15 MB (servidor MCP do usuário) | — |
+| RAM durante tarefa | **não medido** — exigiria um turno faturado | — |
+| CPU ocioso | **0,0 %** — 1,4 s de CPU acumulada em 65 s de vida | ~0 % |
 | Inicialização do `omp` (até `ready`) | **1,41 s** | — |
 | Encerramento gracioso (EOF no stdin) | **0,13 s**, código 0 | — |
 | Órfãos após sair do app | **nenhum** | nenhum |
 | Órfãos após `kill -9` no app | **nenhum** — o `omp` vê EOF e sai sozinho | nenhum |
-| Tamanho do `.app` | 2,2 MB | — |
-| Tamanho do `.dmg` | 1,6 MB | — |
+| Tamanho do `.app` | 2,7 MB | — |
+| Tamanho do `.dmg` | 1,7 MB | — |
+
+> ⚠️ A RAM ociosa passou da meta. Na 0.1.0 eram 24 MB; o app cresceu com as
+> views novas e ainda não passei um profiler nisso. Está anotado como dívida em
+> vez de escondido.
 
 Reproduzir:
 
@@ -586,6 +624,38 @@ podem divergir do changelog.
    o `.dmg` abrir sem passar pelo aviso do Gatekeeper.
 
 ---
+
+## Créditos
+
+Rune só existe porque outras pessoas publicaram trabalho bom de graça:
+
+- **[Oh My Pi](https://github.com/can1357/oh-my-pi)** (`can1357`) — o agente.
+  Todo o trabalho difícil acontece lá dentro: edição ancorada por hash, LSP,
+  subagentes, compactação, memória, 133 comandos. O protocolo RPC é
+  documentado a sério, o que é a razão de este app ter sido possível em vez de
+  um exercício de engenharia reversa.
+- **[OpenCode Zen](https://opencode.ai)** — o provedor, e um modelo de 200K de
+  contexto que custa zero.
+- **DeepSeek** — o modelo.
+
+Um app nativo de 2,7 MB, um runtime de agente completo e um modelo capaz, sem
+pagar nada e sem nenhuma caixa-preta no meio. Open source é lindo mesmo.
+
+## Contribuindo
+
+```bash
+git clone https://github.com/raniere57/rune.git && cd rune
+brew install can1357/tap/omp
+swift test          # 109 testes, nenhum gasta token
+./scripts/build-app.sh release && open build/Rune.app
+```
+
+Sem dependências além do que vem com o macOS e do `omp`. Se um PR precisar
+adicionar uma, o motivo tem que caber em uma frase no README.
+
+## Licença
+
+MIT — veja [LICENSE](LICENSE).
 
 ## Idioma
 

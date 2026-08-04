@@ -8,6 +8,21 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
 
 ## [Não publicado]
 
+## [0.6.0] — 2026-08-04
+
+### Alterado
+
+- **UX do compositor refeita.** Havia duas fileiras de controles sem linha de
+  base comum: enviar/abortar ao lado do texto, chips numa linha separada
+  abaixo, com alturas diferentes. A assimetria era estrutural, não de espaçamento.
+  Agora é uma fileira só — contexto à esquerda, ações à direita, todos com a
+  mesma altura e o mesmo centro. Geometria centralizada em `ComposerMetrics`,
+  para nada voltar a divergir por um ou dois pontos.
+- README reescrito: o que o projeto é, de onde vem cada peça e por que a
+  separação app/agente é a decisão que sustenta o resto.
+- Adicionada licença MIT.
+
+
 ## [0.5.0] — 2026-08-04
 
 ### Corrigido
@@ -193,7 +208,8 @@ Primeira versão. GUI nativa mínima para o `omp`, na barra de menus.
   testado; falta rotear para um modelo de visão.
 - Assinatura ad-hoc — o Gatekeeper bloqueia na primeira abertura.
 
-[Não publicado]: https://github.com/raniere57/rune/compare/v0.5.0...HEAD
+[Não publicado]: https://github.com/raniere57/rune/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/raniere57/rune/releases/tag/v0.6.0
 [0.5.0]: https://github.com/raniere57/rune/releases/tag/v0.5.0
 [0.4.1]: https://github.com/raniere57/rune/releases/tag/v0.4.1
 [0.4.0]: https://github.com/raniere57/rune/releases/tag/v0.4.0

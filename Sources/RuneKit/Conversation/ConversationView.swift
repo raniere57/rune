@@ -83,7 +83,7 @@ public struct ConversationView: View {
 	}
 
 	private var composerSection: some View {
-		VStack(alignment: .leading, spacing: 6) {
+		VStack(alignment: .leading, spacing: 8) {
 			if composer.isSuggesting {
 				SlashSuggestionsView(
 					suggestions: composer.suggestions,
@@ -97,15 +97,13 @@ public struct ConversationView: View {
 				text: $composer.text,
 				attachments: composer.attachments,
 				placeholder: placeholder,
-				isBusy: coordinator.isBusy,
-				// Enter and Esc are shared with the suggestion popup: while it
-				// is open they act on the list, and only fall through to
-				// send/close once it is not.
+				// Enter and Esc are shared with the suggestion popup: while it is
+				// open they act on the list, and only fall through to send/close
+				// once it is not.
 				onSubmit: {
 					if composer.acceptSuggestion() { return }
 					composer.submit()
 				},
-				onAbort: { composer.abort() },
 				onPaste: { composer.handlePaste() },
 				onEscape: {
 					if composer.dismissSuggestions() { return }
@@ -116,44 +114,25 @@ public struct ConversationView: View {
 				onToggleMode: { coordinator.toggleMode() },
 				onRemoveAttachment: { composer.remove($0) }
 			)
-			.animation(.easeOut(duration: 0.12), value: composer.isSuggesting)
 
-			HStack(spacing: 8) {
-				ModePill(
-					mode: coordinator.mode,
-					isPending: coordinator.modeIsPending,
-					isLocked: coordinator.isBusy,
-					onToggle: { coordinator.toggleMode() }
-				)
-
-				StatusChip(
-					symbol: "folder",
-					label: coordinator.workspace.url.lastPathComponent,
-					help: "Diretório de trabalho: \(coordinator.workspace.displayName)"
-				) {
-					coordinator.chooseWorkspace()
-				}
-
-				StatusChip(
-					symbol: "bubble.left.and.bubble.right",
-					label: "Conversas",
-					help: "Retomar uma conversa anterior ou começar outra"
-				) {
-					coordinator.presentSessionPicker()
-				}
-
-				if let hint = statusHint {
-					Text(hint)
-						.font(.system(size: 11))
-						.foregroundStyle(.tertiary)
-						.lineLimit(1)
-				}
-
-				Spacer(minLength: 0)
-			}
+			ComposerFooter(
+				mode: coordinator.mode,
+				isModePending: coordinator.modeIsPending,
+				isBusy: coordinator.isBusy,
+				workspaceName: coordinator.workspace.url.lastPathComponent,
+				workspaceHelp: "Diretório de trabalho: \(coordinator.workspace.displayName)",
+				statusHint: statusHint,
+				canSend: composer.canSend,
+				onToggleMode: { coordinator.toggleMode() },
+				onChooseWorkspace: { coordinator.chooseWorkspace() },
+				onChooseSession: { coordinator.presentSessionPicker() },
+				onAbort: { composer.abort() },
+				onSubmit: { composer.submit() }
+			)
 		}
 		.padding(.horizontal, 14)
-		.padding(.vertical, 11)
+		.padding(.vertical, 12)
+		.animation(.easeOut(duration: 0.12), value: composer.isSuggesting)
 	}
 
 	private var placeholder: String {
@@ -199,6 +178,12 @@ public final class ComposerModel {
 	private var suggestionsDismissed = false
 
 	public var isSuggesting: Bool { !suggestions.isEmpty }
+
+	/// Whether there is anything to send. Owned here so the send button and the
+	/// Enter key cannot disagree about it.
+	public var canSend: Bool {
+		!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty
+	}
 
 	private let coordinator: AgentCoordinator
 	private let interpreter = ClipboardInterpreter()
