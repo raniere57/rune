@@ -11,6 +11,19 @@ public enum AppConfiguration {
 
 	public static let bundleIdentifier = "dev.raniere.Rune"
 
+	/// Version of the running bundle, from `Info.plist`.
+	///
+	/// Read at runtime rather than baked into the source: `build-app.sh` stamps
+	/// the plist from the `VERSION` file, so a constant here would be whatever
+	/// was true when the file was last edited — which is exactly how a build
+	/// carrying 0.4.0 code once shipped labelled 0.2.0.
+	/// `dev` means the binary is running outside a bundle (`swift run`).
+	public static var version: String {
+		Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+	}
+
+	public static var versionedName: String { "\(appName) \(version)" }
+
 	// MARK: - Keychain
 
 	public static let keychainService = "dev.raniere.Rune"

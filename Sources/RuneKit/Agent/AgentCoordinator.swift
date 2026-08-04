@@ -320,6 +320,7 @@ public final class AgentCoordinator {
 
 	private func reportStatus() async {
 		var lines = [
+			"\(AppConfiguration.versionedName)",
 			"Modo: \(mode.label) — \(mode.summary)",
 			"Estado: \(runState.label)",
 			"Workspace: \(workspace.displayName)",

@@ -58,7 +58,7 @@ public final class StatusItemController {
 		} else {
 			button.image = MenuBarIcon.shared
 		}
-		button.toolTip = "\(AppConfiguration.appName) — \(state.label)"
+		button.toolTip = "\(AppConfiguration.versionedName) — \(state.label)"
 	}
 
 	@objc private func handleClick() {
@@ -75,6 +75,10 @@ public final class StatusItemController {
 
 	private func showMenu() {
 		let menu = NSMenu()
+
+		let version = NSMenuItem(title: AppConfiguration.versionedName, action: nil, keyEquivalent: "")
+		version.isEnabled = false
+		menu.addItem(version)
 
 		let status = NSMenuItem(title: statusProvider?() ?? "", action: nil, keyEquivalent: "")
 		status.isEnabled = false

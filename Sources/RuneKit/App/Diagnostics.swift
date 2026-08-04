@@ -20,6 +20,9 @@ public enum Diagnostics {
 		AppMenu.install()
 
 		let report = Report()
+		report.section("build")
+		report.line("versão", AppConfiguration.versionedName)
+
 		report.section("menu")
 		let editActions = AppMenu.installedEditActions
 		report.line("edit key equivalents", editActions.isEmpty ? "MISSING — ⌘V vai apitar" : "\(editActions.count)")

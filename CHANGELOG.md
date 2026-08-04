@@ -8,6 +8,24 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
 
 ## [Não publicado]
 
+## [0.4.1] — 2026-08-04
+
+### Adicionado
+
+- **A versão agora aparece dentro do app**: em `/status`, no menu do ícone e no
+  tooltip da barra de menus. Lida do `Info.plist` em runtime, não fixada no
+  código — uma constante mostraria o que era verdade quando o arquivo foi
+  editado pela última vez.
+
+### Corrigido
+
+- `scripts/release.sh` reconstrói `build/` depois de bumpar o `VERSION`.
+  `build-app.sh` carimba o `Info.plist` no momento do build, então um bundle
+  construído antes do bump ficava com o rótulo anterior. Só afetava instalações
+  locais — o `.dmg` publicado sempre foi construído pelo CI a partir do commit
+  da tag e sempre teve a versão correta.
+
+
 ## [0.4.0] — 2026-08-04
 
 ### Adicionado
@@ -151,7 +169,8 @@ Primeira versão. GUI nativa mínima para o `omp`, na barra de menus.
   testado; falta rotear para um modelo de visão.
 - Assinatura ad-hoc — o Gatekeeper bloqueia na primeira abertura.
 
-[Não publicado]: https://github.com/raniere57/rune/compare/v0.4.0...HEAD
+[Não publicado]: https://github.com/raniere57/rune/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/raniere57/rune/releases/tag/v0.4.1
 [0.4.0]: https://github.com/raniere57/rune/releases/tag/v0.4.0
 [0.3.0]: https://github.com/raniere57/rune/releases/tag/v0.3.0
 [0.2.0]: https://github.com/raniere57/rune/releases/tag/v0.2.0

@@ -58,6 +58,16 @@ echo "==> enviando"
 git push origin HEAD
 git push origin "${TAG}"
 
+# Rebuild locally so `build/Rune.app` carries the version that was just
+# tagged. `build-app.sh` stamps Info.plist from the VERSION file at build time,
+# so a bundle built before the bump keeps the previous label — which is how a
+# local install once ended up reporting an older version than the code it ran.
+# The published artifact still comes from CI; this only keeps `build/` honest.
+echo "==> reconstruindo build/ com ${TAG}"
+./scripts/build-app.sh release >/dev/null
+
 echo
 echo "Tag ${TAG} enviada. O workflow de release constrói o .dmg e publica."
 echo "Acompanhe:  gh run watch"
+echo "Instalar esta versão localmente:"
+echo "    cp -R build/${APP_NAME:-Rune}.app /Applications/"
