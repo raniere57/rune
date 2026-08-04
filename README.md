@@ -21,6 +21,12 @@ Nativo, minúsculo, e — com o modelo certo — de graça.
 
 ![Painel](docs/panel.png)
 
+<sub>Conversa com tool calls recolhidas, diff e o rodapé de controles. Abaixo, o
+estado logo após o Enter — o indicador de atividade existe porque em `max` a
+espera até o primeiro token é longa.</sub>
+
+![Aguardando](docs/waiting.png)
+
 ---
 
 ## A ideia
@@ -51,13 +57,11 @@ omp --mode rpc-ui --approval-mode yolo
 ```
 
 Essa separação é a decisão de projeto mais importante do repositório. Ela é o
-motivo de o app caber em ~4 mil linhas de Swift e de continuar funcionando
+motivo de o app caber em ~6 mil linhas de Swift e de continuar funcionando
 quando o `omp` ganha uma ferramenta nova: ela simplesmente aparece.
 
 **`Control + Option + Espaço`** em qualquer lugar do sistema, escreve, `Enter`.
 Fecha com `Esc` — a tarefa continua rodando.
-
----
 
 ---
 
@@ -72,8 +76,11 @@ Fecha com `Esc` — a tarefa continua rodando.
 - [Build](#build)
 - [Testes](#testes)
 - [Medições](#medições)
+- [Publicando uma release](#publicando-uma-release)
 - [Limitações conhecidas](#limitações-conhecidas)
 - [Próximos passos](#próximos-passos)
+- [Créditos](#créditos)
+- [Contribuindo](#contribuindo)
 
 ---
 
@@ -286,7 +293,7 @@ o painel em PNG.
 
 ```text
 Sources/
-├── Rune/                    executável (3 linhas)
+├── Rune/                            executável (11 linhas)
 └── RuneKit/
     ├── App/
     │   ├── AppConfiguration.swift   provedor, modelo, effort, atalho, timings
@@ -296,7 +303,7 @@ Sources/
     │   └── RuneMain.swift
     ├── MenuBar/
     │   ├── StatusItemController.swift
-    │   ├── FloatingPanel.swift      NSPanel borderless, flutuante
+    │   ├── FloatingPanel.swift      NSPanel borderless, dispensa por resignKey
     │   ├── GlobalHotKeyController.swift  Carbon RegisterEventHotKey
     │   ├── MenuBarIcon.swift        runa desenhada em runtime (template)
     │   └── WorkspacePicker.swift    NSOpenPanel + menu de conversas
@@ -304,8 +311,8 @@ Sources/
     │   ├── OmpLocator.swift         acha o omp fora do PATH herdado do Finder
     │   ├── OmpProcessController.swift  Process/Pipe/FileHandle
     │   ├── OmpTransport.swift       seam para testes
-    │   ├── AgentRunState.swift
     │   ├── AgentMode.swift          plan (read-only) vs build
+    │   ├── AgentRunState.swift
     │   └── AgentCoordinator.swift   máquina de estados, sessões, idle shutdown
     ├── RPC/
     │   ├── JSONValue.swift
@@ -322,8 +329,8 @@ Sources/
     │   └── KeychainStore.swift
     ├── Conversation/
     │   ├── ConversationView.swift   raiz + ComposerModel
-    │   ├── ComposerView.swift       NSTextView (Enter/Shift+Enter/⌘V)
-    │   ├── MessageView.swift
+    │   ├── ComposerView.swift       NSTextView + footer + métricas
+    │   ├── MessageView.swift        turnos, avisos, saída, indicador
     │   ├── ToolCallView.swift       recolhido por padrão
     │   ├── DiffView.swift
     │   ├── ExtensionRequestView.swift
@@ -332,11 +339,16 @@ Sources/
     └── Models/
         ├── ConversationItem.swift
         ├── SlashCommand.swift
-        ├── SessionStore.swift
+        ├── SessionStore.swift       lê transcritos do omp
         ├── ToolSummaryFormatter.swift
         ├── DiffParser.swift
         └── Workspace.swift
+
+packaging/dmg-DS_Store              layout congelado da janela do .dmg
+scripts/                            build, dmg, ícone, chave, release
 ```
+
+~6.000 linhas de Swift, ~2.300 de teste.
 
 ### Decisões que valem explicação
 
@@ -527,11 +539,21 @@ swift test
 
 | Suíte | Cobre |
 |---|---|
-| JSONL framing | linha completa, linha partida em vários reads, várias linhas num read, escalar UTF-8 partido, emoji de 4 bytes partido em três, linha inválida seguida de válida, EOF com buffer parcial, CRLF, linha gigante sem newline |
+| JSONL framing | linha completa, partida em vários reads, várias num read, escalar UTF-8 partido, emoji de 4 bytes, linha inválida seguida de válida, EOF com buffer parcial, CRLF, linha gigante |
 | Frame reader | recuperação de linha inválida, EOF truncado, parse do `ready`, chunk antes da negociação, remontagem completa |
-| rpc_chunk | sequência válida, chunk único, índice faltando, índice duplicado, IDs intercalados, sequência interrompida, chunk órfão, `byteLength` incompatível, metadados mudando no meio, teto excedido, base64 inválido, `count` zero, índice fora do intervalo |
-| Clipboard | vazio, texto, PNG, JPEG, TIFF→PNG, imagem vencendo nome de arquivo, arquivo, pasta, múltiplos arquivos, arquivo vencendo texto |
-| Agent state machine | boot completo, chave ausente, modelo ausente sem substituição, effort não suportado, detecção de imagem, boot concorrente deduplicado, streaming acumulando, `agent_end` não-terminal, steer no meio da execução, ciclo de tool, tool com erro, abort, saída inesperada, reinício, idle shutdown, idle bloqueado por pedido pendente, idle bloqueado por execução, aprovação inline, frames fire-and-forget, `/status`, `/cd` inválido, `/cd` válido, imagem recusada, imagem aceita, caminhos anexados |
+| rpc_chunk | sequência válida, chunk único, índice faltando, duplicado, IDs intercalados, sequência interrompida, chunk órfão, `byteLength` incompatível, metadados mudando, teto excedido, base64 inválido, `count` zero, índice fora do intervalo |
+| Clipboard | vazio, texto, PNG, JPEG, TIFF→PNG, imagem vencendo nome de arquivo, arquivo, pasta, múltiplos, arquivo vencendo texto |
+| Agent state machine | boot, chave ausente, modelo ausente sem substituição, effort não suportado, imagens, boot concorrente, streaming, `agent_end` não-terminal, steer, ciclo de tool, tool com erro, abort, saída inesperada, reinício, idle shutdown e seus bloqueios, aprovação inline, `/status`, `/cd`, `/key` |
+| Plan / build mode | allow-list read-only, argumentos de lançamento, alternância, reinício ao trocar, sessão preservada, travado durante execução, persistência |
+| Approval policy | nenhum modo prompta, `--approval-mode` chega ao `omp`, Plan sem ferramenta mutante |
+| Slash commands | ranqueamento por prefixo/substring/descrição, lista do compositor, navegação, cache dos comandos do `omp` |
+| Session store | cabeçalho, título de fallback, recência, limites, raiz por `--profile` |
+| Transcript to conversation | turnos, thinking oculto, tool call casada com resultado, chamada interrompida, erro, entradas ignoradas, JSON inválido, cauda |
+| Transcript format (reais) | roda contra os transcritos do `omp` nesta máquina; pula-se onde não há |
+| Conversation restore | restaura sem subir o `omp`, não sobrescreve conversa viva, sessão ausente |
+| Screen and model never diverge | troca de diretório limpa o transcrito, `switch_session` cancelado, sessão divergente |
+| Floating panel | `hidesOnDeactivate` desligado, key status, nível, auto-dispensa, posicionamento |
+| Context across an idle shutdown | o segundo prompt retoma a mesma sessão |
 | OMP integration | contra o binário real |
 
 O `FakeOmpTransport` responde com os formatos exatos capturados do omp 17.2.6 e
@@ -559,22 +581,22 @@ Metodologia: cada número vem do processo real; nada é estimado.
 
 | Métrica | Medido | Meta |
 |---|---|---|
-| Lançamento do app | **150 ms** | — |
-| Abertura do painel | instantânea — construído uma vez, depois só ordenado à frente | visualmente instantânea |
-| RAM: app ocioso, `omp` desligado | **54 MB** | < 50 MB ⚠️ |
+| Lançamento do app | **154 ms** | — |
+| Abertura do painel | instantânea — construído no launch, depois só ordenado à frente | visualmente instantânea |
+| RAM: app ocioso, `omp` desligado | **29 MB** (42 MB no pico, assenta em ~15 s) | < 50 MB ✅ |
 | RAM: `omp` iniciado e ocioso | **241 MB** (`omp`) + 15 MB (servidor MCP do usuário) | — |
 | RAM durante tarefa | **não medido** — exigiria um turno faturado | — |
-| CPU ocioso | **0,0 %** — 1,4 s de CPU acumulada em 65 s de vida | ~0 % |
+| CPU ocioso | **0,0 %** — 0,55 s de CPU acumulada em 71 s de vida | ~0 % |
 | Inicialização do `omp` (até `ready`) | **1,41 s** | — |
 | Encerramento gracioso (EOF no stdin) | **0,13 s**, código 0 | — |
 | Órfãos após sair do app | **nenhum** | nenhum |
 | Órfãos após `kill -9` no app | **nenhum** — o `omp` vê EOF e sai sozinho | nenhum |
 | Tamanho do `.app` | 2,7 MB | — |
-| Tamanho do `.dmg` | 1,7 MB | — |
+| Tamanho do `.dmg` | 1.7 MB | — |
 
-> ⚠️ A RAM ociosa passou da meta. Na 0.1.0 eram 24 MB; o app cresceu com as
-> views novas e ainda não passei um profiler nisso. Está anotado como dívida em
-> vez de escondido.
+> Uma medição anterior registrou 54 MB ociosos e ficou no README por duas
+> versões. Estava errada: foi lida antes de o app assentar. Vale como lembrete
+> de esperar a estabilização antes de anotar o número.
 
 Reproduzir:
 
@@ -619,37 +641,39 @@ podem divergir do changelog.
 1. **Sem imagens no modelo atual.** `deepseek-v4-flash-free` anuncia
    `input: ["text"]`. Colar uma imagem produz um erro claro em vez de trocar de
    modelo em silêncio. O transporte de `ImageContent` está implementado e
-   testado; falta só rotear para um modelo de visão. Ponto de extensão:
-   `AppConfiguration.visionModelSelector` (hoje `nil`).
-2. **RAM durante tarefa não medida.** Precisaria de um turno faturado. O comando
-   está acima; o número entra no README quando alguém rodar.
-3. **Assinatura ad-hoc.** Gatekeeper bloqueia na primeira abertura. Distribuir
+   testado; falta rotear para um modelo de visão. Ponto de extensão:
+   `AppConfiguration.visionModelSelector` (hoje `nil`). O `omp` também tem
+   `/vision` (delegação de visão), que ainda não testei por aqui.
+2. **Build não pede confirmação para nada.** É o comportamento pedido, mas em
+   `yolo` o guarda de padrões críticos do `omp` não é aplicado — ver
+   [Segurança](#segurança).
+3. **Assinatura ad-hoc.** O Gatekeeper bloqueia a primeira abertura. Distribuir
    sem esse atrito exige Developer ID + notarização.
-4. **Restauração de histórico traz as últimas 300 entradas.** É lida do
-   transcrito em disco, sem subir o `omp`. Conversas muito longas aparecem
-   truncadas no início.
-5. **Sem paginação de histórico na UI.** O painel mostra a sessão da execução
-   atual; não há scroll infinito para trás.
-6. **Frames de subagente são decodificados mas não renderizados.** Subagentes
-   ativos ainda não aparecem como linhas recolhíveis.
-7. **Um único workspace por vez.** `--add-dir` do `omp` não é exposto.
+4. **Histórico restaurado traz as últimas 300 entradas**, lidas do transcrito em
+   disco. Conversas muito longas aparecem truncadas no começo, e não há scroll
+   infinito para trás.
+5. **Frames de subagente são decodificados mas não renderizados.** Subagentes
+   ativos não aparecem como linhas recolhíveis.
+6. **Um único workspace por vez.** O `--add-dir` do `omp` não é exposto.
+7. **RAM durante uma tarefa não medida** — exigiria um turno faturado.
 8. **Sem teste de UI automatizado.** A verificação visual é o `--diagnose`, que
    renderiza o painel real para PNG, mas não simula cliques nem o atalho global.
+   Foi por isso que a regressão do clique no ícone (0.6.1) passou despercebida
+   até alguém usar o app.
 
 ---
 
 ## Próximos passos
 
-1. **Modelo de visão secundário.** Implementar o roteamento por papel `vision`
-   (ou a ferramenta de inspeção de imagem do `omp`) atrás de
+1. **Imagens.** Testar o `/vision` do `omp` antes de escrever roteamento
+   próprio — pode já resolver. Se não, implementar o papel `vision` atrás de
    `AppConfiguration.visionModelSelector`, sem tocar na interface. É a única
-   funcionalidade prometida que ainda não fecha o ciclo.
-2. **Renderizar `command_output` e subagentes.** Assinar
-   `set_subagent_subscription: progress` e mostrar subagentes ativos como linhas
-   recolhíveis, do mesmo jeito que tool calls — hoje esses frames chegam e são
-   descartados.
+   funcionalidade prometida no escopo original que ainda não fecha o ciclo.
+2. **Subagentes visíveis.** Assinar `set_subagent_subscription: progress` e
+   mostrar os ativos como linhas recolhíveis, do mesmo jeito que tool calls —
+   hoje esses frames chegam e são descartados.
 3. **Assinar e notarizar.** Developer ID + `notarytool` no `build-dmg.sh`, para
-   o `.dmg` abrir sem passar pelo aviso do Gatekeeper.
+   o `.dmg` abrir sem o aviso do Gatekeeper.
 
 ---
 

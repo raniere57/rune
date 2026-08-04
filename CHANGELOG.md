@@ -8,6 +8,20 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
 
 ## [Não publicado]
 
+## [0.7.2] — 2026-08-04
+
+### Alterado
+
+- **Documentação auditada contra o código**, em vez de remendada. A árvore de
+  arquivos, a tabela de suítes de teste, o índice e as limitações estavam
+  atrasados em várias versões. Capturas de tela regeradas com o layout atual.
+- **Correção de medição:** a RAM ociosa é **29 MB**, não os 54 MB que ficaram
+  no README por duas versões. O número antigo foi lido antes de o app assentar.
+  Volta a caber na meta de 50 MB do escopo original.
+- Limitações e próximos passos reescritos: `command_output` já foi resolvido na
+  0.5.0 e continuava listado como pendente.
+
+
 ## [0.7.1] — 2026-08-04
 
 ### Corrigido
@@ -320,7 +334,8 @@ Primeira versão. GUI nativa mínima para o `omp`, na barra de menus.
   testado; falta rotear para um modelo de visão.
 - Assinatura ad-hoc — o Gatekeeper bloqueia na primeira abertura.
 
-[Não publicado]: https://github.com/raniere57/rune/compare/v0.7.1...HEAD
+[Não publicado]: https://github.com/raniere57/rune/compare/v0.7.2...HEAD
+[0.7.2]: https://github.com/raniere57/rune/releases/tag/v0.7.2
 [0.7.1]: https://github.com/raniere57/rune/releases/tag/v0.7.1
 [0.7.0]: https://github.com/raniere57/rune/releases/tag/v0.7.0
 [0.6.2]: https://github.com/raniere57/rune/releases/tag/v0.6.2
