@@ -8,6 +8,35 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
 
 ## [Não publicado]
 
+## [0.7.0] — 2026-08-04
+
+### Alterado
+
+- **Nenhum dos dois modos pede permissão.** Os dois sobem com
+  `--approval-mode yolo`; a segurança vem de quais ferramentas existem, não de
+  caixas de diálogo.
+  - **Plan** não consegue modificar nada porque as ferramentas de escrita e
+    execução não estão no registro. Verificado contra o `omp` real: o
+    `get_state` lista exatamente as oito de leitura.
+  - **Build** é autônomo por escolha — edita, roda shell e lança subagentes sem
+    confirmar.
+
+  Antes o app usava `--approval-mode write` nos dois. Parecia prudente e não
+  era: o `omp` trata toda ferramenta sem declaração de `approval` como tier
+  `exec`, e `read`, `grep`, `glob` e companhia não declaram nenhuma — então até
+  **ler um arquivo pedia permissão**, num modo cuja função inteira é ler.
+
+  > ⚠️ Em `yolo` o guarda de padrões críticos do `omp` (`rm -rf /`, fork bombs,
+  > baixar-e-executar, escrita em `/etc/passwd`, desligar a máquina) não é
+  > aplicado. `bash.patterns` na config do `omp` continua valendo em `yolo` para
+  > quem quiser um piso mínimo sem os prompts gerais.
+
+- A política de aprovação virou propriedade de `AgentMode`, junto com a
+  allow-list — as duas decisões que definem um modo agora moram no mesmo lugar.
+- 4 testes novos (134 no total) travando que nenhum modo prompta e que Plan
+  continua sem ferramenta mutante.
+
+
 ## [0.6.2] — 2026-08-04
 
 ### Corrigido
@@ -263,7 +292,8 @@ Primeira versão. GUI nativa mínima para o `omp`, na barra de menus.
   testado; falta rotear para um modelo de visão.
 - Assinatura ad-hoc — o Gatekeeper bloqueia na primeira abertura.
 
-[Não publicado]: https://github.com/raniere57/rune/compare/v0.6.2...HEAD
+[Não publicado]: https://github.com/raniere57/rune/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/raniere57/rune/releases/tag/v0.7.0
 [0.6.2]: https://github.com/raniere57/rune/releases/tag/v0.6.2
 [0.6.1]: https://github.com/raniere57/rune/releases/tag/v0.6.1
 [0.6.0]: https://github.com/raniere57/rune/releases/tag/v0.6.0

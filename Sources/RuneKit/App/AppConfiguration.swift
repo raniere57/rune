@@ -73,10 +73,11 @@ public enum AppConfiguration {
 	/// `extension_ui_request` frames, which is exactly what the GUI renders.
 	public static let ompMode = "rpc-ui"
 
-	/// `write` auto-approves reads and file writes but prompts for `exec`-tier
-	/// tools (bash, browser, subagents). OMP's own default is `yolo`, which
-	/// would run shell commands with no confirmation at all.
-	public static let approvalMode = "write"
+	// Approval policy is per mode — see `AgentMode.approvalMode`. It used to be a
+	// single `write` for the whole app, which looked prudent and was not: OMP
+	// treats any tool with no `approval` declaration as `exec` tier, and `read`,
+	// `grep`, `glob` and friends declare none — so even reading a file raised a
+	// prompt, in a mode whose entire purpose is reading.
 
 	/// Tools kept in plan mode, as an allow-list for `omp --tools=…`.
 	///

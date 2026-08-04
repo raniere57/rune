@@ -622,16 +622,15 @@ struct AgentModeTests {
 	@Test("build mode passes no allow-list, so a newly added tool stays available")
 	func buildKeepsEveryTool() {
 		#expect(AgentMode.build.toolAllowList == nil)
-		#expect(AgentMode.build.launchArguments.isEmpty)
+		#expect(!AgentMode.build.launchArguments.contains("--tools"))
 	}
 
 	@Test("plan mode reaches omp as --tools")
 	func planLaunchArguments() {
 		let arguments = AgentMode.plan.launchArguments
-		#expect(arguments.first == "--tools")
-		#expect(arguments.count == 2)
-		#expect(arguments[1].contains("read"))
-		#expect(!arguments[1].contains("bash"))
+		let index = try! #require(arguments.firstIndex(of: "--tools"))
+		#expect(arguments[index + 1].contains("read"))
+		#expect(!arguments[index + 1].contains("bash"))
 	}
 
 	@Test("toggling flips between the two modes")
@@ -825,5 +824,42 @@ struct ConversationRestoreTests {
 		let coordinator = makeCoordinator(sessionFile: "/tmp/rune-sumiu-\(UUID().uuidString).jsonl")
 		await coordinator.restoreConversationFromDisk()
 		#expect(coordinator.items.isEmpty)
+	}
+}
+
+@Suite("Approval policy")
+struct ApprovalPolicyTests {
+	@Test("neither mode prompts — plan is safe by its registry, build by choice")
+	func bothModesAutoApprove() {
+		for mode in AgentMode.allCases {
+			#expect(mode.approvalMode == "yolo", "\(mode.label) must not prompt")
+		}
+	}
+
+	@Test("the approval mode reaches omp on the command line")
+	func approvalReachesTheCommandLine() {
+		for mode in AgentMode.allCases {
+			let arguments = mode.launchArguments
+			let index = arguments.firstIndex(of: "--approval-mode")
+			#expect(index != nil, "\(mode.label) never passes --approval-mode")
+			#expect(arguments[index! + 1] == "yolo")
+		}
+	}
+
+	@Test("plan still ships its read-only allow-list alongside the approval flag")
+	func planKeepsItsAllowList() {
+		let arguments = AgentMode.plan.launchArguments
+		let index = try! #require(arguments.firstIndex(of: "--tools"))
+		let tools = arguments[index + 1]
+		// Auto-approval only stays safe because these are simply absent.
+		for mutating in ["write", "edit", "bash", "python", "notebook", "browser", "computer", "task"] {
+			#expect(!tools.split(separator: ",").contains(Substring(mutating)))
+		}
+		#expect(tools.contains("read"))
+	}
+
+	@Test("build passes no allow-list, so every tool stays available")
+	func buildRestrictsNothing() {
+		#expect(!AgentMode.build.launchArguments.contains("--tools"))
 	}
 }

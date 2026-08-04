@@ -42,7 +42,7 @@ Rune.app  (Swift · SwiftUI · AppKit · zero dependências)
       │
       │ JSONL via stdin/stdout
       ▼
-omp --mode rpc-ui --approval-mode write
+omp --mode rpc-ui --approval-mode yolo
       │
       ├── modelo (opencode-zen/deepseek-v4-flash-free, effort max)
       ├── sessões · ferramentas · shell · Git
@@ -234,6 +234,11 @@ Plan é **read-only de verdade**, não um pedido de aprovação: o `omp` sobe co
 `--tools=<lista>` e as ferramentas de escrita e execução simplesmente não
 existem no registro. Não há o que aprovar e não há como escapar.
 
+**Nenhum dos dois modos pede permissão.** Em Plan não há o que uma confirmação
+protegesse — pedir autorização para rodar `grep` é só atrito. Em Build a
+autonomia é o ponto: confirmar cada comando transforma o agente em um exercício
+de cliques.
+
 > O plan mode nativo do `omp` (`Alt+Shift+P`) vive no TUI e não é exposto no
 > RPC. A allow-list de ferramentas é o mecanismo disponível para um host de
 > protocolo — e é o mais estrito dos dois.
@@ -383,7 +388,7 @@ adivinhado). Fontes: `docs/rpc.md`, `docs/providers.md`, `docs/models.md`,
 
 ### Sequência de boot
 
-1. `omp --mode rpc-ui --approval-mode write` no diretório do workspace
+1. `omp --mode rpc-ui --approval-mode yolo` no diretório do workspace
 2. aguarda o frame `ready` (anuncia `[1, 2]`, `maxFrameBytes` 1 MiB,
    `maxReassembledFrameBytes` 64 MiB)
 3. `negotiate_protocol` v2 → liga a remontagem de `rpc_chunk`
@@ -430,13 +435,30 @@ exige.
 
 ## Segurança
 
-- **`--approval-mode write`.** O padrão do `omp` é `yolo`, que aprova shell,
-  browser e subagentes sem perguntar. Aqui reads e writes são automáticos, mas
-  tudo em tier `exec` gera um pedido de aprovação.
-- **Aprovações aparecem na conversa.** Em `rpc-ui` elas chegam como
-  `extension_ui_request` com `method: "select"` e opções `["Approve", "Deny"]`
-  (ver `extensibility/extensions/wrapper.ts` no `omp`). São renderizadas inline,
-  com o comando visível — nada de modal grande escondendo o que será executado.
+O modelo de segurança do Rune é **estrutural, não interativo**: o que protege é
+quais ferramentas existem, não quantas caixas de diálogo aparecem.
+
+| | Plan | Build |
+|---|---|---|
+| Ferramentas | 8, todas de leitura | todas |
+| Pode escrever/executar | não — as ferramentas não existem | sim |
+| Pede permissão | não | não |
+
+- **Plan não consegue modificar nada.** Verificado contra o `omp` real: com
+  `--tools=read,grep,glob,lsp,web_search,inspect_image,todo,ask`, o `get_state`
+  lista exatamente essas oito. `write`, `edit`, `bash`, `python`, `notebook`,
+  `browser`, `computer` e `task` não estão no registro — o modelo não tem como
+  chamá-las. É uma allow-list de propósito: uma ferramenta nova de uma versão
+  futura do `omp` fica de fora por padrão.
+- **Build roda com `--approval-mode yolo`**, por escolha explícita. Ele edita
+  arquivos, roda comandos de shell e lança subagentes sem confirmar.
+
+  > ⚠️ Em `yolo`, o guarda de padrões críticos do próprio `omp` (`rm -rf /`,
+  > fork bombs, baixar-e-executar, escrita em `/etc/passwd`, desligar a máquina)
+  > **não é aplicado**. Se quiser um piso mínimo de volta sem reintroduzir os
+  > prompts gerais, `bash.patterns` na config do `omp` continua valendo em
+  > `yolo`.
+
 - **A chave só existe em dois lugares:** o Keychain e o ambiente do processo
   filho. Nunca em código, Git, plist, `UserDefaults`, log ou mensagem de erro.
   O comando `/key` foi escrito com isso em mente: o valor não vira `UserTurn`,
@@ -449,10 +471,13 @@ exige.
   `clipboard`, `session`, `ui`. Conteúdo de prompt é `privacy: .private`;
   chaves, imagens em base64 e ambiente completo nunca são registrados.
 - **Sem processos órfãos.** O encerramento normal fecha o stdin, que é o caminho
-  documentado de saída limpa do `omp` (drena comandos aceitos, descarta a
-  sessão, sai com código 0). SIGTERM e SIGKILL são só o backstop. Mesmo se o app
-  for morto com `kill -9`, o fd fecha junto e o `omp` vê EOF e sai — verificado
-  ([medições](#medições)).
+  documentado de saída limpa do `omp`. Mesmo com `kill -9` no app, o fd fecha
+  junto e o `omp` vê EOF e sai — verificado ([medições](#medições)).
+
+Se o fluxo pedir confirmação para operações destrutivas, o caminho é o
+`bash.patterns` do `omp`, não voltar o `--approval-mode` para `write`: `write`
+faria até `read` perguntar, porque o `omp` trata toda ferramenta sem declaração
+de `approval` como tier `exec`.
 
 ---
 
@@ -494,7 +519,7 @@ constante.
 swift test
 ```
 
-**130 testes, 14 suítes.** Nenhum gasta token.
+**134 testes, 15 suítes.** Nenhum gasta token.
 
 | Suíte | Cobre |
 |---|---|
@@ -645,7 +670,7 @@ pagar nada e sem nenhuma caixa-preta no meio. Open source é lindo mesmo.
 ```bash
 git clone https://github.com/raniere57/rune.git && cd rune
 brew install can1357/tap/omp
-swift test          # 130 testes, nenhum gasta token
+swift test          # 134 testes, nenhum gasta token
 ./scripts/build-app.sh release && open build/Rune.app
 ```
 

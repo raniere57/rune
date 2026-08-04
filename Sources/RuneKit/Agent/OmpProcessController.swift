@@ -63,9 +63,10 @@ public final class OmpProcessController: @unchecked Sendable {
 
 	// MARK: - Lifecycle
 
+	/// Arguments common to every launch. Approval policy and the tool
+	/// allow-list are per-mode and appended by `AgentMode.launchArguments`.
 	public static let defaultArguments = [
 		"--mode", AppConfiguration.ompMode,
-		"--approval-mode", AppConfiguration.approvalMode,
 	]
 
 	public func start(
