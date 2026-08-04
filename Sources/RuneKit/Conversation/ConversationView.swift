@@ -41,6 +41,11 @@ public struct ConversationView: View {
 					ForEach(coordinator.items) { item in
 						row(for: item).id(item.id)
 					}
+
+					if showsActivityRow {
+						ActivityIndicatorView(state: coordinator.runState)
+							.transition(.opacity)
+					}
 					// Anchor for auto-scroll; scrolling to the last item would
 					// stop short while its text is still growing.
 					Color.clear.frame(height: 1).id(Self.bottomAnchor)
@@ -56,6 +61,11 @@ public struct ConversationView: View {
 			}
 			.onChange(of: streamingSignature) {
 				proxy.scrollTo(Self.bottomAnchor, anchor: .bottom)
+			}
+			.onChange(of: showsActivityRow) {
+				withAnimation(.easeOut(duration: 0.15)) {
+					proxy.scrollTo(Self.bottomAnchor, anchor: .bottom)
+				}
 			}
 		}
 	}
@@ -147,6 +157,17 @@ public struct ConversationView: View {
 		case .failed(let message): return message
 		default: return coordinator.runState.label
 		}
+	}
+
+	/// Shown while the agent is working and the last thing on screen is not
+	/// already streaming text — otherwise the dots would sit under a paragraph
+	/// that is visibly growing, which is noise.
+	private var showsActivityRow: Bool {
+		guard coordinator.runState.isBusy else { return false }
+		if case .assistant(let turn) = coordinator.items.last, turn.isStreaming, !turn.text.isEmpty {
+			return false
+		}
+		return true
 	}
 
 	/// Changes on every streamed delta so the scroll follows growing text, not

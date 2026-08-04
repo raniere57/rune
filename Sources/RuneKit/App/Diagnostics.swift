@@ -72,6 +72,14 @@ public enum Diagnostics {
 			// so the render captures the running state — abort button visible,
 			// send acting as steer.
 			let environment = ProcessInfo.processInfo.environment
+			// `RUNE_DIAGNOSE_WAITING=1` stops right after `agent_start`: the
+			// moment just after Enter, with nothing on screen yet, which is the
+			// state the activity indicator exists for.
+			if environment["RUNE_DIAGNOSE_WAITING"] == "1" {
+				transport.replayStart()
+				try? await Task.sleep(for: .milliseconds(600))
+				finish(report: report, panel: panel, coordinator: coordinator, outputPath: outputPath)
+			}
 			let stayBusy = environment["RUNE_DIAGNOSE_BUSY"] == "1"
 			transport.replayScriptedTurn(settle: !stayBusy)
 			if stayBusy { composer.text = "na verdade, confere também o refresh token" }
@@ -247,6 +255,11 @@ private final class PreviewTransport: OmpTransport, @unchecked Sendable {
 	}
 
 	func stopImmediately() { stop() }
+
+	/// Only `agent_start` — the agent is working and has produced nothing.
+	func replayStart() {
+		emit(#"{"type":"agent_start"}"#)
+	}
 
 	func replayScriptedTurn(settle: Bool = true) {
 		for json in Self.scriptedFrames { emit(json) }

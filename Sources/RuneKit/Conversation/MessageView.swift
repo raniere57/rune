@@ -266,3 +266,58 @@ struct CommandOutputView: View {
 		return lines.prefix(Self.collapsedLineLimit).joined(separator: "\n") + "\n…"
 	}
 }
+
+/// Live activity row, shown at the end of the transcript while the agent is
+/// working and has not produced visible output yet.
+///
+/// Without it the panel sits perfectly still between pressing Enter and the
+/// first token — which on a `max`-effort model is many seconds — and then
+/// everything appears at once. The footer hint alone is too quiet to read as
+/// "it is working".
+struct ActivityIndicatorView: View {
+	let state: AgentRunState
+
+	@State private var phase = 0.0
+
+	var body: some View {
+		HStack(spacing: 8) {
+			HStack(spacing: 3) {
+				ForEach(0..<3, id: \.self) { index in
+					Circle()
+						.fill(.secondary)
+						.frame(width: 5, height: 5)
+						// Staggered so the row reads as motion rather than as
+						// three dots blinking in unison.
+						.opacity(0.25 + 0.6 * pulse(offset: Double(index) * 0.22))
+				}
+			}
+			Text(label)
+				.font(.system(size: 12))
+				.foregroundStyle(.secondary)
+			Spacer(minLength: 0)
+		}
+		.frame(maxWidth: .infinity, alignment: .leading)
+		.task {
+			// One repeating animation drives all three dots; no timer.
+			withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
+				phase = 1
+			}
+		}
+	}
+
+	private func pulse(offset: Double) -> Double {
+		let shifted = phase + offset
+		return shifted > 1 ? 2 - shifted : shifted
+	}
+
+	private var label: String {
+		switch state {
+		case .starting: return "Iniciando o agente…"
+		case .thinking: return "Pensando…"
+		case .usingTool(let name): return "Executando \(name)…"
+		case .compacting: return "Compactando o contexto…"
+		case .aborting: return "Abortando…"
+		case .stopped, .ready, .failed: return "…"
+		}
+	}
+}

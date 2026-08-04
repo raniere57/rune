@@ -22,6 +22,8 @@ final class FakeOmpTransport: OmpTransport, @unchecked Sendable {
 	var modelEfforts: [String] = ["high", "max"]
 	var modelInputs: [String] = ["text"]
 	var sessionFile = "/tmp/rune-test/session.jsonl"
+	/// Makes `switch_session` answer `success: true` with `cancelled: true`.
+	var cancelsSwitchSession = false
 	private(set) var chunkReassemblyLimit: Int?
 	private(set) var stopCount = 0
 	private(set) var thinkingLevel: String?
@@ -176,10 +178,15 @@ final class FakeOmpTransport: OmpTransport, @unchecked Sendable {
 			"data":{"cancelled":false}}
 			""")
 
-		case .switchSession:
+		case .switchSession(let path):
+			// A real switch moves the reported session file; the fake mirrors
+			// that so a mismatch can be exercised.
+			if !cancelsSwitchSession, sessionFile != "/tmp/rune-outra-sessao.jsonl" {
+				sessionFile = path
+			}
 			emit("""
 			{\(identifier)"type":"response","command":"switch_session","success":true,\
-			"data":{"cancelled":false}}
+			"data":{"cancelled":\(cancelsSwitchSession)}}
 			""")
 
 		case .getMessagesPage:

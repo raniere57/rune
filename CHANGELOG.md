@@ -8,6 +8,34 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
 
 ## [Não publicado]
 
+## [0.7.1] — 2026-08-04
+
+### Corrigido
+
+- **A tela podia mostrar uma conversa que o modelo não tinha.** Trocar de
+  diretório limpava a sessão do `omp` mas deixava o histórico no painel, então
+  a próxima mensagem começava do zero enquanto a conversa anterior continuava
+  visível — o agente parecia ter esquecido tudo. O transcrito agora sai junto
+  com a sessão, com um aviso dizendo que o contexto anterior não vem.
+- **`switch_session` cancelado era tratado como sucesso.** A resposta é
+  `success: true` com `data.cancelled`, e eu ignorava o `cancelled` — o mesmo
+  resultado: painel com histórico, modelo sem nada.
+- **A sessão carregada passa a ser conferida.** Depois de trocar, um `get_state`
+  verifica que o `sessionFile` é mesmo o pedido. Divergência vira aviso visível
+  e conversa nova, em vez de silêncio.
+
+### Adicionado
+
+- **Indicador de atividade no transcrito.** Três pontos animados e o estado
+  atual (`Pensando…`, `Executando bash…`, `Compactando o contexto…`) logo abaixo
+  da sua mensagem, enquanto o agente trabalha e ainda não escreveu nada. Some
+  sozinho quando o texto começa a streamar, para não competir com ele. Antes o
+  painel ficava imóvel por vários segundos — em `max` são muitos — e a resposta
+  aparecia de uma vez.
+- `RUNE_DIAGNOSE_WAITING=1` renderiza esse estado no `--diagnose`.
+- 4 testes novos (138 no total) travando que tela e modelo não divergem.
+
+
 ## [0.7.0] — 2026-08-04
 
 ### Alterado
@@ -292,7 +320,8 @@ Primeira versão. GUI nativa mínima para o `omp`, na barra de menus.
   testado; falta rotear para um modelo de visão.
 - Assinatura ad-hoc — o Gatekeeper bloqueia na primeira abertura.
 
-[Não publicado]: https://github.com/raniere57/rune/compare/v0.7.0...HEAD
+[Não publicado]: https://github.com/raniere57/rune/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/raniere57/rune/releases/tag/v0.7.1
 [0.7.0]: https://github.com/raniere57/rune/releases/tag/v0.7.0
 [0.6.2]: https://github.com/raniere57/rune/releases/tag/v0.6.2
 [0.6.1]: https://github.com/raniere57/rune/releases/tag/v0.6.1

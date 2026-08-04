@@ -211,6 +211,10 @@ Clicar no chip da pasta abre o seletor de diretórios do próprio macOS — o me
 que qualquer app usa. `/cd` sem argumento abre o mesmo seletor; com um caminho,
 troca direto.
 
+Trocar de diretório **começa uma conversa nova**: uma sessão é ligada à pasta em
+que foi gravada, e o transcrito sai da tela junto com ela. Deixar o histórico
+visível enquanto o modelo começa do zero seria pior do que limpá-lo.
+
 Clicar em **Conversas** lista as sessões recentes lidas dos transcritos do
 `omp` (`~/.omp/agent/sessions`), com **Nova conversa** no topo. As do diretório
 atual vêm primeiro — retomar uma conversa gravada em outra pasta move o
@@ -519,7 +523,7 @@ constante.
 swift test
 ```
 
-**134 testes, 15 suítes.** Nenhum gasta token.
+**138 testes, 17 suítes.** Nenhum gasta token.
 
 | Suíte | Cobre |
 |---|---|
@@ -670,7 +674,7 @@ pagar nada e sem nenhuma caixa-preta no meio. Open source é lindo mesmo.
 ```bash
 git clone https://github.com/raniere57/rune.git && cd rune
 brew install can1357/tap/omp
-swift test          # 134 testes, nenhum gasta token
+swift test          # 138 testes, nenhum gasta token
 ./scripts/build-app.sh release && open build/Rune.app
 ```
 

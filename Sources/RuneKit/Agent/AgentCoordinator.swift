@@ -168,8 +168,18 @@ public final class AgentCoordinator {
 		sessionFile = nil
 		defaults.removeObject(forKey: AppConfiguration.DefaultsKey.lastSessionFile)
 
+		// The transcript goes with it. Leaving it on screen while the model
+		// starts a fresh session is the worst possible state: the history looks
+		// present and the agent has none of it.
+		items.removeAll()
+		streamingAssistantId = nil
+		pendingRequestIds.removeAll()
+
 		if transport.isRunning { await shutdown(reason: "workspace changed") }
-		append(.notice(NoticeEntry(level: .info, text: "Workspace: \(resolved.displayName)")))
+		append(.notice(NoticeEntry(
+			level: .info,
+			text: "Workspace: \(resolved.displayName) — conversa nova, o contexto anterior não vem junto."
+		)))
 	}
 
 	public func answer(requestId: String, with answer: ExtensionUIAnswer) {
@@ -310,7 +320,15 @@ public final class AgentCoordinator {
 		do {
 			try await ensureRunning()
 			if !needsWorkspaceChange {
-				_ = try await request(.switchSession(path: session.path), timeout: .seconds(30))
+				let response = try await request(.switchSession(path: session.path), timeout: .seconds(30))
+				guard response.data?["cancelled"]?.boolValue != true else {
+					throw RpcError.commandFailed(
+						command: "switch_session",
+						message: "a troca de sessão foi cancelada",
+						code: nil
+					)
+				}
+				try await confirmSessionLoaded(expecting: session.path)
 				await refreshState()
 			}
 		} catch {
@@ -732,13 +750,49 @@ public final class AgentCoordinator {
 	private func restoreSessionIfPossible() async {
 		guard let sessionFile, FileManager.default.fileExists(atPath: sessionFile) else { return }
 		do {
-			_ = try await request(.switchSession(path: sessionFile), timeout: .seconds(30))
+			let response = try await request(.switchSession(path: sessionFile), timeout: .seconds(30))
+			// `switch_session` answers `success: true` with `cancelled: true`
+			// when it declined to switch. Treating that as success is how the
+			// panel ended up showing a conversation the model had never seen.
+			guard response.data?["cancelled"]?.boolValue != true else {
+				throw RpcError.commandFailed(
+					command: "switch_session",
+					message: "a troca de sessão foi cancelada",
+					code: nil
+				)
+			}
+			try await confirmSessionLoaded(expecting: sessionFile)
 			sessionLog.info("session restored")
 			if items.isEmpty { await restoreHistory() }
 		} catch {
 			sessionLog.notice("session restore failed, continuing with a fresh session")
 			self.sessionFile = nil
 			defaults.removeObject(forKey: AppConfiguration.DefaultsKey.lastSessionFile)
+			// Loudly, and the transcript goes too: a visible history the model
+			// cannot see is worse than an empty one.
+			items.removeAll()
+			streamingAssistantId = nil
+			append(.notice(NoticeEntry(
+				level: .warning,
+				text: "Não foi possível retomar a conversa anterior. Começando uma nova."
+			)))
+		}
+	}
+
+	/// Asks OMP which transcript it actually loaded.
+	///
+	/// The response to `switch_session` says the command was accepted, not that
+	/// the session is the one requested — and a mismatch means every later
+	/// prompt lands in a different conversation than the one on screen.
+	private func confirmSessionLoaded(expecting path: String) async throws {
+		let state = try await request(.getState, timeout: .seconds(15))
+		let loaded = state.data?["sessionFile"]?.stringValue ?? ""
+		guard loaded == path else {
+			throw RpcError.commandFailed(
+				command: "switch_session",
+				message: "o omp continuou em outra sessão (\(URL(fileURLWithPath: loaded).lastPathComponent))",
+				code: nil
+			)
 		}
 	}
 
