@@ -748,3 +748,82 @@ struct AgentModeTests {
 		#expect(second.mode == .plan)
 	}
 }
+
+@MainActor
+@Suite("Conversation restore")
+struct ConversationRestoreTests {
+	private func writeTranscript() throws -> String {
+		let file = FileManager.default.temporaryDirectory
+			.appendingPathComponent("rune-restore-\(UUID().uuidString).jsonl")
+		let lines = [
+			#"{"type":"session","cwd":"/Users/x/Dev","id":"s1","timestamp":"2026-08-04T00:00:00.000Z","version":3}"#,
+			#"{"type":"message","id":"1","message":{"role":"user","content":[{"type":"text","text":"pergunta anterior"}]}}"#,
+			#"{"type":"message","id":"2","message":{"role":"assistant","content":[{"type":"text","text":"resposta anterior"}]}}"#,
+		]
+        try (lines.joined(separator: "\n") + "\n").write(to: file, atomically: true, encoding: .utf8)
+		return file.path
+	}
+
+	private func makeCoordinator(
+		sessionFile: String?,
+		transport: FakeOmpTransport = FakeOmpTransport()
+	) -> AgentCoordinator {
+		let defaults = UserDefaults(suiteName: "rune.restore.\(UUID().uuidString)")!
+		if let sessionFile {
+			defaults.set(sessionFile, forKey: AppConfiguration.DefaultsKey.lastSessionFile)
+		}
+		return AgentCoordinator(
+			transport: transport,
+			defaults: defaults,
+			idleInterval: 3600,
+			apiKeyProvider: { "test-key" }
+		)
+	}
+
+	@Test("the saved conversation is rendered without starting OMP")
+	func restoresWithoutBooting() async throws {
+		let path = try writeTranscript()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+
+		let transport = FakeOmpTransport()
+		let coordinator = makeCoordinator(sessionFile: path, transport: transport)
+		#expect(coordinator.items.isEmpty)
+
+		await coordinator.restoreConversationFromDisk()
+
+		// This is the whole point: the history appears with no process running,
+		// so reopening the panel after a relaunch is not blank.
+		#expect(!transport.isRunning)
+		#expect(coordinator.items.count == 2)
+		#expect(coordinator.hasConversation)
+	}
+
+	@Test("restoring never overwrites a conversation already on screen")
+	func doesNotClobberLiveItems() async throws {
+		let path = try writeTranscript()
+		defer { try? FileManager.default.removeItem(atPath: path) }
+
+		let transport = FakeOmpTransport()
+		let coordinator = makeCoordinator(sessionFile: path, transport: transport)
+		try await coordinator.ensureRunning()
+		await coordinator.submit(text: "mensagem nova", attachments: [])
+
+		let before = coordinator.items.count
+        await coordinator.restoreConversationFromDisk()
+		#expect(coordinator.items.count == before)
+	}
+
+	@Test("no saved session means nothing is restored and nothing breaks")
+	func noSessionIsSafe() async {
+		let coordinator = makeCoordinator(sessionFile: nil)
+		await coordinator.restoreConversationFromDisk()
+		#expect(coordinator.items.isEmpty)
+	}
+
+	@Test("a session file that no longer exists is ignored")
+	func missingFileIsSafe() async {
+		let coordinator = makeCoordinator(sessionFile: "/tmp/rune-sumiu-\(UUID().uuidString).jsonl")
+		await coordinator.restoreConversationFromDisk()
+		#expect(coordinator.items.isEmpty)
+	}
+}

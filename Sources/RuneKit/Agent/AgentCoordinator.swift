@@ -234,6 +234,29 @@ public final class AgentCoordinator {
 		NSApp.windows.compactMap { $0 as? FloatingPanel }.first
 	}
 
+	/// Renders the saved conversation straight from its transcript file.
+	///
+	/// Called at launch and after resuming, so reopening the panel shows the
+	/// history immediately. The RPC path only runs during a boot, which the
+	/// first prompt triggers — so without this the panel looked empty after an
+	/// app restart even though the session was on disk.
+	public func restoreConversationFromDisk() async {
+		guard items.isEmpty,
+		      let path = sessionFile,
+		      FileManager.default.fileExists(atPath: path)
+		else { return }
+
+		let restored = await Task.detached(priority: .userInitiated) {
+			SessionStore.conversation(at: path)
+		}.value
+
+		// Re-checked after the hop: a prompt may have started in the meantime,
+		// and overwriting live items with a stale snapshot would lose it.
+		guard items.isEmpty, !restored.isEmpty else { return }
+		items = restored
+		sessionLog.info("restored \(restored.count, privacy: .public) items from transcript")
+	}
+
 	/// Reloads the on-disk transcript list off the main actor.
 	public func refreshRecentSessions() async {
 		let root = SessionStore.root(forSessionFile: sessionFile)
@@ -280,11 +303,14 @@ public final class AgentCoordinator {
 			await shutdown(reason: "resuming a session from another directory")
 		}
 
+		// Rendered from disk first so the conversation appears immediately;
+		// starting or switching the process happens behind it.
+		await restoreConversationFromDisk()
+
 		do {
 			try await ensureRunning()
 			if !needsWorkspaceChange {
 				_ = try await request(.switchSession(path: session.path), timeout: .seconds(30))
-				await restoreHistory()
 				await refreshState()
 			}
 		} catch {

@@ -352,3 +352,187 @@ struct SessionStoreTests {
 		#expect(summary(secondsAgo: 172_800).age() == "2 d")
 	}
 }
+
+@Suite("Transcript to conversation")
+struct TranscriptConversationTests {
+	private func write(_ lines: [String]) throws -> String {
+		let file = FileManager.default.temporaryDirectory
+			.appendingPathComponent("rune-transcript-\(UUID().uuidString).jsonl")
+		try (lines.joined(separator: "\n") + "\n").write(to: file, atomically: true, encoding: .utf8)
+		return file.path
+	}
+
+	/// Shapes taken from a real `~/.omp/agent/sessions/**.jsonl`.
+	private let userLine = #"{"type":"message","id":"1","message":{"role":"user","content":[{"type":"text","text":"por que a sessão cai?"}]}}"#
+	private let assistantLine = """
+	{"type":"message","id":"2","message":{"role":"assistant","content":[\
+	{"type":"thinking","thinking":"raciocínio interno que não deve aparecer"},\
+	{"type":"text","text":"Achei o problema."}]}}
+	"""
+	private let toolCallLine = """
+	{"type":"message","id":"3","message":{"role":"assistant","content":[\
+	{"type":"toolCall","id":"call_1","name":"read","arguments":{"path":"/Users/x/Dev/app/src/AuthService.swift"}}]}}
+	"""
+	private let toolResultLine = """
+	{"type":"message","id":"4","message":{"role":"toolResult","toolCallId":"call_1",\
+	"toolName":"read","content":[{"type":"text","text":"conteúdo do arquivo"}]}}
+	"""
+
+	@Test("user and assistant turns are rebuilt, thinking is never surfaced")
+	func rebuildsTurns() throws {
+		let path = try write([userLine, assistantLine])
+		defer { try? FileManager.default.removeItem(atPath: path) }
+
+		let items = SessionStore.conversation(at: path)
+		#expect(items.count == 2)
+		guard case .user(let user) = items[0], case .assistant(let assistant) = items[1] else {
+			Issue.record("expected a user turn then an assistant turn")
+			return
+		}
+		#expect(user.text == "por que a sessão cai?")
+		#expect(assistant.text == "Achei o problema.")
+		#expect(assistant.isStreaming == false)
+		#expect(!assistant.text.contains("raciocínio interno"))
+	}
+
+	@Test("a tool call is matched with its result by toolCallId")
+	func matchesToolResults() throws {
+		let path = try write([userLine, toolCallLine, toolResultLine])
+		defer { try? FileManager.default.removeItem(atPath: path) }
+
+		let items = SessionStore.conversation(at: path)
+		guard case .tool(let activity) = items[1] else {
+			Issue.record("expected a tool row")
+			return
+		}
+		#expect(activity.id == "call_1")
+		#expect(activity.name == "read")
+		#expect(activity.status == .succeeded)
+		#expect(activity.resultText == "conteúdo do arquivo")
+		#expect(activity.summary == "Leu …/src/AuthService.swift")
+	}
+
+	@Test("a tool call with no recorded result reads as interrupted, not as running")
+	func unmatchedToolCallIsNotLeftSpinning() throws {
+		let path = try write([userLine, toolCallLine])
+		defer { try? FileManager.default.removeItem(atPath: path) }
+
+		guard case .tool(let activity) = SessionStore.conversation(at: path)[1] else {
+			Issue.record("expected a tool row")
+			return
+		}
+		// `.running` would render a spinner that never stops in restored history.
+		#expect(activity.status == .failed)
+		#expect(activity.resultText.contains("interrompida"))
+	}
+
+	@Test("an errored tool result is marked failed and carries no diff")
+	func errorResult() throws {
+		let errored = """
+		{"type":"message","id":"4","message":{"role":"toolResult","toolCallId":"call_1",\
+		"toolName":"read","isError":true,"content":[{"type":"text","text":"- a\\n+ b\\n- c"}]}}
+		"""
+		let path = try write([toolCallLine, errored])
+		defer { try? FileManager.default.removeItem(atPath: path) }
+
+		guard case .tool(let activity) = SessionStore.conversation(at: path)[0] else {
+			Issue.record("expected a tool row")
+			return
+		}
+		#expect(activity.status == .failed)
+		#expect(activity.diff == nil)
+	}
+
+	@Test("non-message entries are ignored")
+	func ignoresBookkeepingEntries() throws {
+		let path = try write([
+			#"{"type":"title","title":"t","updatedAt":0,"v":1}"#,
+			#"{"type":"session","cwd":"/x","id":"s","timestamp":"2026-08-04T00:00:00.000Z","version":3}"#,
+			#"{"type":"model_change","id":"m","model":{"id":"x"}}"#,
+			userLine,
+		])
+		defer { try? FileManager.default.removeItem(atPath: path) }
+
+		let items = SessionStore.conversation(at: path)
+		#expect(items.count == 1)
+		guard case .user = items[0] else {
+			Issue.record("expected only the user turn")
+			return
+		}
+	}
+
+	@Test("a malformed line does not abort the rest of the transcript")
+	func survivesGarbage() throws {
+		let path = try write([userLine, "isto não é json", assistantLine])
+		defer { try? FileManager.default.removeItem(atPath: path) }
+		#expect(SessionStore.conversation(at: path).count == 2)
+	}
+
+	@Test("only the tail is kept when the transcript is longer than the limit")
+	func keepsTail() throws {
+		var lines: [String] = []
+		for index in 0..<20 {
+			lines.append(#"{"type":"message","id":"\#(index)","message":{"role":"user","content":[{"type":"text","text":"m\#(index)"}]}}"#)
+		}
+		let path = try write(lines)
+		defer { try? FileManager.default.removeItem(atPath: path) }
+
+		let items = SessionStore.conversation(at: path, limit: 5)
+		#expect(items.count == 5)
+		guard case .user(let last) = items.last else {
+			Issue.record("expected a user turn")
+			return
+		}
+		#expect(last.text == "m19")
+	}
+
+	@Test("a missing file yields nothing rather than throwing")
+	func missingFile() {
+		#expect(SessionStore.conversation(at: "/tmp/rune-nao-existe-\(UUID().uuidString).jsonl").isEmpty)
+	}
+}
+
+/// Parses whatever transcripts this machine actually has.
+///
+/// The synthetic fixtures above encode my reading of the format; this checks
+/// that reading against files OMP really wrote. It skips itself when there are
+/// none, so CI stays green on a clean runner.
+@Suite(
+	"Transcript format, against real OMP files",
+	.enabled(if: !SessionStore.recentSessions(root: SessionStore.defaultRoot, limit: 5).isEmpty,
+	         "no OMP transcripts on this machine")
+)
+struct RealTranscriptTests {
+	private var sessions: [SessionSummary] {
+		SessionStore.recentSessions(root: SessionStore.defaultRoot, limit: 5)
+	}
+
+	@Test("every recent transcript yields a header the picker can label")
+	func headersParse() throws {
+		for session in sessions {
+			#expect(!session.sessionId.isEmpty)
+			#expect(!session.title.isEmpty, "session \(session.path) produced no label")
+		}
+	}
+
+	@Test("a transcript with messages rebuilds into renderable items")
+	func conversationsRebuild() throws {
+		// The largest recent transcript is the one most likely to exercise tool
+		// calls, results, and multi-block assistant messages.
+		let candidates = sessions.map { ($0, SessionStore.conversation(at: $0.path)) }
+		guard let (session, items) = candidates.max(by: { $0.1.count < $1.1.count }), !items.isEmpty
+		else { return }
+
+		// No restored tool row may be left spinning — that would be a permanent
+		// spinner in the history.
+		for case .tool(let activity) in items {
+			#expect(activity.status != .running, "tool \(activity.name) restored as running")
+		}
+		// Assistant turns must be closed, or the caret keeps blinking forever.
+		for case .assistant(let turn) in items {
+			#expect(!turn.isStreaming)
+		}
+		#expect(items.contains { if case .user = $0 { return true }; return false },
+		        "\(session.path) rebuilt with no user turn")
+	}
+}

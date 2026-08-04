@@ -47,6 +47,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 		// click is what made the first click feel dead.
 		_ = ensurePanel()
 
+		// The saved conversation is rendered from its transcript, so opening the
+		// panel after a relaunch shows history without waiting for a prompt to
+		// boot OMP.
+		Task { await coordinator.restoreConversationFromDisk() }
+
 		observeRunState()
 		logger.info("\(AppConfiguration.appName, privacy: .public) ready")
 	}

@@ -8,6 +8,31 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
 
 ## [Não publicado]
 
+## [0.6.2] — 2026-08-04
+
+### Corrigido
+
+- **O histórico da conversa sumia ao reabrir o painel depois de reiniciar o
+  app.** A conversa só era reconstruída durante o boot do `omp`, e o boot só
+  acontece no primeiro prompt — então o painel abria vazio mesmo com a sessão
+  gravada em disco e listada no seletor de conversas.
+
+  Agora a conversa é lida direto do transcrito (`~/.omp/agent/sessions/**.jsonl`)
+  no launch e ao retomar uma sessão, **sem precisar subir o `omp`**. Aparece na
+  hora, e o processo continua subindo só quando há trabalho de verdade.
+
+  Blocos de raciocínio continuam fora da tela. Uma chamada de ferramenta sem
+  resultado registrado é marcada como interrompida em vez de ficar com um
+  spinner eterno.
+
+### Adicionado
+
+- 14 testes novos (130 no total), incluindo uma suíte que roda contra os
+  transcritos reais desta máquina — as fixtures sintéticas codificam a minha
+  leitura do formato, essa suíte confere a leitura contra o que o `omp` de fato
+  escreveu. Ela se pula sozinha onde não há sessões.
+
+
 ## [0.6.1] — 2026-08-04
 
 ### Corrigido
@@ -238,7 +263,8 @@ Primeira versão. GUI nativa mínima para o `omp`, na barra de menus.
   testado; falta rotear para um modelo de visão.
 - Assinatura ad-hoc — o Gatekeeper bloqueia na primeira abertura.
 
-[Não publicado]: https://github.com/raniere57/rune/compare/v0.6.1...HEAD
+[Não publicado]: https://github.com/raniere57/rune/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/raniere57/rune/releases/tag/v0.6.2
 [0.6.1]: https://github.com/raniere57/rune/releases/tag/v0.6.1
 [0.6.0]: https://github.com/raniere57/rune/releases/tag/v0.6.0
 [0.5.0]: https://github.com/raniere57/rune/releases/tag/v0.5.0

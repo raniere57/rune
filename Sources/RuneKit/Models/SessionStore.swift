@@ -163,3 +163,107 @@ extension ISO8601DateFormatter {
 		return formatter
 	}
 }
+
+// MARK: - Rebuilding a conversation from disk
+
+extension SessionStore {
+	/// Largest tail of a transcript that is parsed. A long session can reach
+	/// megabytes, and only the recent part is worth rendering.
+	static let maxTranscriptBytes = 4 * 1024 * 1024
+
+	/// Rebuilds the rendered conversation straight from a transcript file.
+	///
+	/// This exists so reopening the panel shows the conversation immediately,
+	/// without starting OMP. The RPC path (`get_messages_page`) only runs during
+	/// a boot, which is triggered by the first prompt — so after an app restart
+	/// the panel used to look empty until the user sent something, even though
+	/// the session was right there on disk.
+	///
+	/// Blocking I/O — call from a background task.
+	public static func conversation(at path: String, limit: Int = 300) -> [ConversationItem] {
+		guard let text = tail(of: URL(fileURLWithPath: path)) else { return [] }
+
+		var items: [ConversationItem] = []
+		/// Index into `items` for each `toolCallId`, so a `toolResult` arriving
+		/// later can complete the row it belongs to.
+		var toolIndexById: [String: Int] = [:]
+
+		for line in text.split(separator: "\n") {
+			guard let entry = try? JSONDecoder().decode(JSONValue.self, from: Data(line.utf8)),
+			      entry["type"]?.stringValue == "message",
+			      let message = entry["message"]
+			else { continue }
+
+			switch message["role"]?.stringValue {
+			case "user":
+				let text = joinedText(in: message)
+				guard !text.isEmpty else { continue }
+				items.append(.user(UserTurn(text: text)))
+
+			case "assistant":
+				// `thinking` blocks are skipped everywhere, including here.
+				let text = joinedText(in: message)
+				if !text.isEmpty {
+					items.append(.assistant(AssistantTurn(text: text, isStreaming: false)))
+				}
+				for block in message["content"]?.arrayValue ?? []
+				where block["type"]?.stringValue == "toolCall" {
+					let id = block["id"]?.stringValue ?? UUID().uuidString
+					toolIndexById[id] = items.count
+					items.append(.tool(ToolActivity(
+						id: id,
+						name: block["name"]?.stringValue ?? "tool",
+						arguments: block["arguments"] ?? .object([:]),
+						// Corrected below if a result is found; a call with no
+						// recorded result means the turn was interrupted.
+						status: .failed,
+						resultText: "Sem resultado registrado — a execução foi interrompida."
+					)))
+				}
+
+			case "toolResult":
+				guard let id = message["toolCallId"]?.stringValue,
+				      let index = toolIndexById[id],
+				      case .tool(var activity) = items[index]
+				else { continue }
+				let result = joinedText(in: message)
+				activity.status = message["isError"]?.boolValue == true ? .failed : .succeeded
+				activity.resultText = String(result.prefix(AppConfiguration.maxRenderedToolResultCharacters))
+				activity.diff = activity.status == .succeeded ? DiffParser.parse(result) : nil
+				items[index] = .tool(activity)
+
+			default:
+				continue
+			}
+		}
+
+		return items.count > limit ? Array(items.suffix(limit)) : items
+	}
+
+	/// Text blocks of a message, joined. Non-text blocks are ignored.
+	private static func joinedText(in message: JSONValue) -> String {
+		if let text = message["content"]?.stringValue { return text }
+		return (message["content"]?.arrayValue ?? [])
+			.filter { $0["type"]?.stringValue == "text" }
+			.compactMap { $0["text"]?.stringValue }
+			.joined(separator: "\n")
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+	}
+
+	/// Reads at most the last `maxTranscriptBytes`, dropping the leading partial
+	/// line so the caller never sees a half-parsed entry.
+	private static func tail(of file: URL) -> String? {
+		guard let handle = try? FileHandle(forReadingFrom: file) else { return nil }
+		defer { try? handle.close() }
+
+		let size = (try? handle.seekToEnd()).map(Int.init) ?? 0
+		let start = max(0, size - maxTranscriptBytes)
+		try? handle.seek(toOffset: UInt64(start))
+		guard let data = try? handle.readToEnd(),
+		      let text = String(data: data, encoding: .utf8)
+		else { return nil }
+
+		guard start > 0, let newline = text.firstIndex(of: "\n") else { return text }
+		return String(text[text.index(after: newline)...])
+	}
+}

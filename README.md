@@ -494,7 +494,7 @@ constante.
 swift test
 ```
 
-**116 testes, 11 suítes.** Nenhum gasta token.
+**130 testes, 14 suítes.** Nenhum gasta token.
 
 | Suíte | Cobre |
 |---|---|
@@ -596,10 +596,9 @@ podem divergir do changelog.
    está acima; o número entra no README quando alguém rodar.
 3. **Assinatura ad-hoc.** Gatekeeper bloqueia na primeira abertura. Distribuir
    sem esse atrito exige Developer ID + notarização.
-4. **Restauração de histórico é rasa.** Ao reabrir uma sessão, `get_messages_page`
-   traz até 64 mensagens e são renderizados texto de usuário/assistente e tool
-   calls recolhidas — sem resultados de ferramenta nem diffs, que não estão na
-   página.
+4. **Restauração de histórico traz as últimas 300 entradas.** É lida do
+   transcrito em disco, sem subir o `omp`. Conversas muito longas aparecem
+   truncadas no início.
 5. **Sem paginação de histórico na UI.** O painel mostra a sessão da execução
    atual; não há scroll infinito para trás.
 6. **Frames de subagente são decodificados mas não renderizados.** Subagentes
@@ -646,7 +645,7 @@ pagar nada e sem nenhuma caixa-preta no meio. Open source é lindo mesmo.
 ```bash
 git clone https://github.com/raniere57/rune.git && cd rune
 brew install can1357/tap/omp
-swift test          # 116 testes, nenhum gasta token
+swift test          # 130 testes, nenhum gasta token
 ./scripts/build-app.sh release && open build/Rune.app
 ```
 
