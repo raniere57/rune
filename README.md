@@ -133,11 +133,11 @@ da runa Algiz (ᛉ).
 |---|---|
 | Abrir/fechar o painel | `Control + Option + Espaço`, ou clique no ícone |
 | Menu (status, nova conversa, sair) | clique com o botão direito no ícone |
-| Enviar | `Enter` |
+| Enviar | `Enter`, ou o botão `↑` |
 | Quebrar linha | `Shift + Enter` |
 | Fechar o painel | `Esc` — a tarefa em andamento continua |
 | Nova conversa | `⌘K` (pede confirmação se houver histórico) |
-| Abortar a execução | `⌘.` |
+| Abortar a execução | `⌘.`, ou o botão quadrado vermelho (só aparece durante a execução) |
 | Copiar a última resposta | `⌘C` sem seleção |
 | Colar | `⌘V` — texto, imagem, arquivo ou pasta |
 
@@ -156,6 +156,13 @@ Digitados no próprio campo, sem menus:
 
 Trocar a chave com o `omp` rodando encerra o processo: o ambiente de um processo
 vivo não pode ser alterado, então a nova chave só entra no próximo envio.
+
+Qualquer `/comando` que não seja um dos acima é **encaminhado ao `omp`**, que
+tem os seus próprios — 133 na instalação de referência, incluindo `/compact`,
+`/context`, `/usage`, `/model`, `/tools`, `/todo`, `/export`, `/share`,
+`/rename`, `/add-dir`, `/mcp`, `/memory`, `/jobs`, `/vision` e as skills em
+`/skill:*`. Rode `/help` ou consulte a documentação do `omp` para a lista da sua
+instalação.
 
 ### Colar
 

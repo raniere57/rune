@@ -88,6 +88,7 @@ public struct ConversationView: View {
 				placeholder: placeholder,
 				isBusy: coordinator.isBusy,
 				onSubmit: { composer.submit() },
+				onAbort: { composer.abort() },
 				onPaste: { composer.handlePaste() },
 				onEscape: { composer.dismiss() },
 				onRemoveAttachment: { composer.remove($0) }
@@ -184,6 +185,12 @@ public final class ComposerModel {
 			attachments.removeAll { $0.fileURL == folder }
 			Task { await coordinator.changeWorkspace(to: folder) }
 		}
+	}
+
+	/// Same path as `⌘.`; the button is an affordance for it, not a second
+	/// mechanism.
+	public func abort() {
+		Task { await coordinator.abort() }
 	}
 
 	public func remove(_ attachment: PendingAttachment) {

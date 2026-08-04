@@ -59,7 +59,12 @@ public enum Diagnostics {
 			composer.text = "por que a sessão cai depois de 1h?"
 			composer.submit()
 			try? await Task.sleep(for: .milliseconds(150))
-			transport.replayScriptedTurn()
+			// `MENUAGENT_DIAGNOSE_BUSY=1` stops the replay before `agent_end`,
+			// so the render captures the running state — abort button visible,
+			// send acting as steer.
+			let stayBusy = ProcessInfo.processInfo.environment["MENUAGENT_DIAGNOSE_BUSY"] == "1"
+			transport.replayScriptedTurn(settle: !stayBusy)
+			if stayBusy { composer.text = "na verdade, confere também o refresh token" }
 			try? await Task.sleep(for: .milliseconds(600))
 			finish(report: report, panel: panel, coordinator: coordinator, outputPath: outputPath)
 		}
@@ -215,8 +220,9 @@ private final class PreviewTransport: OmpTransport, @unchecked Sendable {
 
 	func stopImmediately() { stop() }
 
-	func replayScriptedTurn() {
+	func replayScriptedTurn(settle: Bool = true) {
 		for json in Self.scriptedFrames { emit(json) }
+		if settle { emit(#"{"type":"agent_end","messages":[],"isTerminal":true}"#) }
 	}
 
 	private func emit(_ json: String) {
@@ -250,6 +256,5 @@ private final class PreviewTransport: OmpTransport, @unchecked Sendable {
 		passava como válido.\\n\\n```swift\\nif expiry <= now { renew() }\\n```\\n\\nCorrigido — os testes de \
 		sessão voltaram a passar."}}
 		""",
-		#"{"type":"agent_end","messages":[],"isTerminal":true}"#,
 	]
 }

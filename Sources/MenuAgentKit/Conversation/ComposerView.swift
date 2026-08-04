@@ -13,6 +13,7 @@ struct ComposerView: View {
 	let isBusy: Bool
 
 	let onSubmit: () -> Void
+	let onAbort: () -> Void
 	let onPaste: () -> Bool
 	let onEscape: () -> Void
 	let onRemoveAttachment: (PendingAttachment) -> Void
@@ -55,27 +56,97 @@ struct ComposerView: View {
 					.frame(height: height)
 				}
 
-				SubmitHint(isBusy: isBusy)
+				HStack(spacing: 6) {
+					// Abort only exists while there is something to abort, so
+					// the composer stays a single control when idle.
+					if isBusy {
+						ComposerButton(
+							symbol: "stop.fill",
+							role: .abort,
+							help: "Abortar (⌘.)",
+							action: onAbort
+						)
+						.transition(.opacity.combined(with: .scale(scale: 0.8)))
+					}
+
+					ComposerButton(
+						symbol: "arrow.up",
+						role: .send,
+						help: isBusy ? "Enviar como correção (Enter)" : "Enviar (Enter)",
+						isEnabled: canSend,
+						action: onSubmit
+					)
+				}
+				.animation(.easeOut(duration: 0.15), value: isBusy)
+				.padding(.bottom, 3)
 			}
 		}
 	}
+
+	private var canSend: Bool {
+		!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty
+	}
 }
 
-private struct SubmitHint: View {
-	let isBusy: Bool
+/// Small square action button.
+///
+/// Square rather than round on purpose: `stop.fill` reads as "stop" only when
+/// the container does not fight the glyph, and matching the send button's shape
+/// keeps the pair reading as one control group.
+private struct ComposerButton: View {
+	enum Role {
+		case send
+		case abort
+	}
+
+	let symbol: String
+	let role: Role
+	let help: String
+	var isEnabled = true
+	let action: () -> Void
+
+	@State private var isHovering = false
+	@State private var isPressed = false
 
 	var body: some View {
-		Group {
-			if isBusy {
-				ProgressView().controlSize(.small).scaleEffect(0.7)
-			} else {
-				Image(systemName: "return")
-					.font(.system(size: 11, weight: .medium))
-					.foregroundStyle(.tertiary)
-			}
+		Button(action: action) {
+			Image(systemName: symbol)
+				.font(.system(size: role == .abort ? 9 : 11, weight: .bold))
+				.foregroundStyle(foreground)
+				.frame(width: 24, height: 24)
+				.background(background, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+				.overlay(
+					RoundedRectangle(cornerRadius: 6, style: .continuous)
+						.strokeBorder(.white.opacity(isHovering && isEnabled ? 0.18 : 0.07))
+				)
+				.scaleEffect(isPressed ? 0.9 : 1)
 		}
-		.frame(width: 20, height: 20)
-		.padding(.bottom, 4)
+		.buttonStyle(.plain)
+		.disabled(!isEnabled)
+		.help(help)
+		.accessibilityLabel(help)
+		.onHover { isHovering = $0 }
+		.animation(.easeOut(duration: 0.12), value: isHovering)
+		.animation(.easeOut(duration: 0.08), value: isPressed)
+		// `onLongPressGesture` with a zero minimum duration is the cheapest way
+		// to get a real pressed state out of a `.plain` button.
+		.onLongPressGesture(minimumDuration: 0, pressing: { isPressed = $0 }, perform: {})
+	}
+
+	private var foreground: Color {
+		guard isEnabled else { return .secondary.opacity(0.5) }
+		switch role {
+		case .send: return isHovering ? .white : .primary
+		case .abort: return .red
+		}
+	}
+
+	private var background: Color {
+		guard isEnabled else { return .clear }
+		switch role {
+		case .send: return isHovering ? .accentColor : .primary.opacity(0.10)
+		case .abort: return .red.opacity(isHovering ? 0.22 : 0.12)
+		}
 	}
 }
 
