@@ -46,7 +46,12 @@ swift test >/dev/null
 
 echo "${VERSION}" > VERSION
 git add VERSION CHANGELOG.md
-git commit -m "chore: release ${TAG}"
+# VERSION may already hold this value (first release, or a re-cut after a
+# failed publish), in which case there is nothing to commit and the tag alone
+# is what matters.
+if ! git diff --cached --quiet; then
+	git commit -m "chore: release ${TAG}"
+fi
 git tag -a "${TAG}" -m "${TAG}"
 
 echo "==> enviando"
