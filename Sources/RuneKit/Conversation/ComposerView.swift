@@ -367,3 +367,45 @@ struct ModePill: View {
 		return "\(mode.summary) — ⇥ alterna"
 	}
 }
+
+/// Small labelled control in the status row.
+///
+/// Shared by the workspace and conversation chips so both read as one family
+/// with the mode pill, without any of them growing into a toolbar.
+struct StatusChip: View {
+	let symbol: String
+	let label: String
+	let help: String
+	let action: () -> Void
+
+	@State private var isHovering = false
+
+	var body: some View {
+		Button(action: action) {
+			HStack(spacing: 4) {
+				Image(systemName: symbol)
+					.font(.system(size: 9, weight: .medium))
+				Text(label)
+					.font(.system(size: 11))
+					.lineLimit(1)
+					.truncationMode(.middle)
+					// Capped on the label alone: a frame on the whole chip would
+					// stretch it to the cap and scatter the row.
+					.frame(maxWidth: 150)
+					.fixedSize()
+			}
+			.foregroundStyle(isHovering ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
+			.padding(.horizontal, 7)
+			.padding(.vertical, 3)
+			.background(.white.opacity(isHovering ? 0.08 : 0.0), in: Capsule())
+			.overlay(Capsule().strokeBorder(.white.opacity(isHovering ? 0.14 : 0.07)))
+			.contentShape(Capsule())
+		}
+		.buttonStyle(.plain)
+		.help(help)
+		.accessibilityLabel(help)
+		.fixedSize()
+		.onHover { isHovering = $0 }
+		.animation(.easeOut(duration: 0.12), value: isHovering)
+	}
+}

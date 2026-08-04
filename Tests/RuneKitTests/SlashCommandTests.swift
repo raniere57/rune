@@ -198,3 +198,157 @@ struct ComposerSuggestionTests {
 		#expect(status.first?.source == .local)
 	}
 }
+
+@Suite("Session store")
+struct SessionStoreTests {
+	/// Writes a transcript with the header OMP actually emits: a `title` line,
+	/// then a `session` line carrying cwd/id/timestamp.
+	private func writeTranscript(
+		in directory: URL,
+		title: String,
+		cwd: String,
+		id: String,
+		firstUserMessage: String? = nil
+	) throws -> URL {
+		try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+		let file = directory.appendingPathComponent("2026-08-04T00-00-00-000Z_\(id).jsonl")
+		var lines = [
+			#"{"type":"title","title":"\#(title)","updatedAt":0,"v":1}"#,
+			"""
+			{"type":"session","cwd":"\(cwd)","id":"\(id)",\
+			"timestamp":"2026-08-04T00:00:00.000Z","version":3}
+			""",
+		]
+		if let firstUserMessage {
+			lines.append(#"{"type":"message","message":{"role":"user","content":[{"type":"text","text":"\#(firstUserMessage)"}]}}"#)
+		}
+		try (lines.joined(separator: "\n") + "\n").write(to: file, atomically: true, encoding: .utf8)
+		return file
+	}
+
+	private func makeRoot() throws -> URL {
+		let root = FileManager.default.temporaryDirectory
+			.appendingPathComponent("rune-sessions-\(UUID().uuidString)")
+		try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+		return root
+	}
+
+	@Test("reads title, cwd and id out of a transcript header")
+	func parsesHeader() throws {
+		let root = try makeRoot()
+		defer { try? FileManager.default.removeItem(at: root) }
+		_ = try writeTranscript(
+			in: root.appendingPathComponent("slug-a"),
+			title: "Corrigir o refresh do token",
+			cwd: "/Users/x/Dev/app",
+			id: "aaa"
+		)
+
+		let sessions = SessionStore.recentSessions(root: root)
+		#expect(sessions.count == 1)
+		#expect(sessions[0].title == "Corrigir o refresh do token")
+		#expect(sessions[0].cwd == "/Users/x/Dev/app")
+		#expect(sessions[0].sessionId == "aaa")
+		#expect(sessions[0].workspaceName == "app")
+	}
+
+	@Test("falls back to the first user message when OMP never titled the session")
+	func fallsBackToFirstMessage() throws {
+		let root = try makeRoot()
+		defer { try? FileManager.default.removeItem(at: root) }
+		_ = try writeTranscript(
+			in: root.appendingPathComponent("slug-b"),
+			title: "",
+			cwd: "/Users/x/Dev/app",
+			id: "bbb",
+			firstUserMessage: "por que a sessão cai depois de 1h?"
+		)
+
+		let sessions = SessionStore.recentSessions(root: root)
+		#expect(sessions.first?.title == "por que a sessão cai depois de 1h?")
+	}
+
+	@Test("a transcript with no session line is skipped instead of listed blank")
+	func skipsHeaderlessFile() throws {
+		let root = try makeRoot()
+		defer { try? FileManager.default.removeItem(at: root) }
+		let directory = root.appendingPathComponent("slug-c")
+		try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+		try "não é jsonl válido\n".write(
+			to: directory.appendingPathComponent("broken.jsonl"),
+			atomically: true,
+			encoding: .utf8
+		)
+
+		#expect(SessionStore.recentSessions(root: root).isEmpty)
+	}
+
+	@Test("most recently touched transcripts come first")
+	func sortsByRecency() throws {
+		let root = try makeRoot()
+		defer { try? FileManager.default.removeItem(at: root) }
+		let older = try writeTranscript(
+			in: root.appendingPathComponent("slug-old"), title: "Antiga",
+			cwd: "/Users/x/Dev/app", id: "old"
+		)
+		let newer = try writeTranscript(
+			in: root.appendingPathComponent("slug-new"), title: "Recente",
+			cwd: "/Users/x/Dev/app", id: "new"
+		)
+		try FileManager.default.setAttributes(
+			[.modificationDate: Date().addingTimeInterval(-3600)], ofItemAtPath: older.path
+		)
+		try FileManager.default.setAttributes(
+			[.modificationDate: Date()], ofItemAtPath: newer.path
+		)
+
+		#expect(SessionStore.recentSessions(root: root).map(\.title) == ["Recente", "Antiga"])
+	}
+
+	@Test("the limit bounds how many transcripts are opened")
+	func respectsLimit() throws {
+		let root = try makeRoot()
+		defer { try? FileManager.default.removeItem(at: root) }
+		for index in 0..<5 {
+			_ = try writeTranscript(
+				in: root.appendingPathComponent("slug-\(index)"), title: "S\(index)",
+				cwd: "/Users/x/Dev/app", id: "id\(index)"
+			)
+		}
+		#expect(SessionStore.recentSessions(root: root, limit: 2).count == 2)
+	}
+
+	@Test("a missing root yields nothing rather than throwing")
+	func missingRootIsEmpty() {
+		let root = URL(fileURLWithPath: "/tmp/rune-nao-existe-\(UUID().uuidString)")
+		#expect(SessionStore.recentSessions(root: root).isEmpty)
+	}
+
+    @Test("the sessions root is inferred from a live transcript path, honouring --profile")
+	func infersRootFromSessionFile() throws {
+		let root = try makeRoot()
+		defer { try? FileManager.default.removeItem(at: root) }
+		let file = try writeTranscript(
+			in: root.appendingPathComponent("slug-a"), title: "T",
+			cwd: "/Users/x", id: "aaa"
+		)
+		#expect(SessionStore.root(forSessionFile: file.path).path == root.path)
+		// Unknown paths fall back to the default location.
+		#expect(SessionStore.root(forSessionFile: nil).path == SessionStore.defaultRoot.path)
+	}
+
+	@Test("relative ages read as short human labels")
+	func ageLabels() {
+		func summary(secondsAgo: TimeInterval) -> SessionSummary {
+			SessionSummary(
+				path: "/p", sessionId: "i", cwd: "/c",
+				startedAt: Date(), modifiedAt: Date().addingTimeInterval(-secondsAgo),
+				title: "t"
+			)
+		}
+		#expect(summary(secondsAgo: 10).age() == "agora")
+		#expect(summary(secondsAgo: 600).age() == "10 min")
+		#expect(summary(secondsAgo: 7200).age() == "2 h")
+		#expect(summary(secondsAgo: 172_800).age() == "2 d")
+	}
+}

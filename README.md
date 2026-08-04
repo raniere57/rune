@@ -142,6 +142,8 @@ da runa Algiz (ᛉ).
 | Colar | `⌘V` — texto, imagem, arquivo ou pasta |
 | Lista de comandos | digite `/` — `↑↓` navega, `⇥`/`Enter` completa, `Esc` fecha |
 | Alternar Plan / Build | `⇥` com o campo sem lista aberta, ou clique no chip |
+| Trocar de diretório | clique no chip da pasta, ou `/cd` sem argumento |
+| Retomar uma conversa | clique no chip **Conversas** |
 
 ### Comandos internos
 
@@ -166,6 +168,24 @@ tem os seus próprios — 133 na instalação de referência, incluindo `/compac
 `/rename`, `/add-dir`, `/mcp`, `/memory`, `/jobs`, `/vision` e as skills em
 `/skill:*`. A lista do `/` mostra os da sua instalação, e fica em cache para
 aparecer completa mesmo com o `omp` desligado.
+
+### Diretório e conversas
+
+Abaixo do campo há três chips: o modo, o **diretório** e as **conversas**.
+
+Clicar no chip da pasta abre o seletor de diretórios do próprio macOS — o mesmo
+que qualquer app usa. `/cd` sem argumento abre o mesmo seletor; com um caminho,
+troca direto.
+
+Clicar em **Conversas** lista as sessões recentes lidas dos transcritos do
+`omp` (`~/.omp/agent/sessions`), com **Nova conversa** no topo. As do diretório
+atual vêm primeiro — retomar uma conversa gravada em outra pasta move o
+workspace junto, senão todo caminho relativo daquele histórico resolveria na
+árvore errada.
+
+O app não mantém banco de sessões próprio: o `omp` já é dono desse
+armazenamento, e duplicá-lo só criaria uma segunda fonte de verdade para
+divergir. O picker só lê o cabeçalho de cada transcrito.
 
 ### Plan e Build
 
@@ -235,7 +255,8 @@ Sources/
     │   ├── StatusItemController.swift
     │   ├── FloatingPanel.swift      NSPanel borderless, flutuante
     │   ├── GlobalHotKeyController.swift  Carbon RegisterEventHotKey
-    │   └── MenuBarIcon.swift        runa desenhada em runtime (template)
+    │   ├── MenuBarIcon.swift        runa desenhada em runtime (template)
+    │   └── WorkspacePicker.swift    NSOpenPanel + menu de conversas
     ├── Agent/
     │   ├── OmpLocator.swift         acha o omp fora do PATH herdado do Finder
     │   ├── OmpProcessController.swift  Process/Pipe/FileHandle
@@ -268,6 +289,7 @@ Sources/
     └── Models/
         ├── ConversationItem.swift
         ├── SlashCommand.swift
+        ├── SessionStore.swift
         ├── ToolSummaryFormatter.swift
         ├── DiffParser.swift
         └── Workspace.swift
@@ -438,7 +460,7 @@ constante.
 swift test
 ```
 
-**101 testes, 9 suítes.** Nenhum gasta token.
+**109 testes, 10 suítes.** Nenhum gasta token.
 
 | Suíte | Cobre |
 |---|---|
@@ -542,9 +564,8 @@ podem divergir do changelog.
    página.
 5. **Sem paginação de histórico na UI.** O painel mostra a sessão da execução
    atual; não há scroll infinito para trás.
-6. **`command_output` e frames de subagente são decodificados mas não
-   renderizados.** Comandos slash locais que produzem saída ainda não têm view
-   própria.
+6. **Frames de subagente são decodificados mas não renderizados.** Subagentes
+   ativos ainda não aparecem como linhas recolhíveis.
 7. **Um único workspace por vez.** `--add-dir` do `omp` não é exposto.
 8. **Sem teste de UI automatizado.** A verificação visual é o `--diagnose`, que
    renderiza o painel real para PNG, mas não simula cliques nem o atalho global.

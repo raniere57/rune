@@ -122,6 +122,19 @@ public struct NoticeEntry: Identifiable, Sendable, Equatable {
 	}
 }
 
+/// Text a local OMP slash command printed — `/session`, `/context`, `/usage`,
+/// `/tools` and friends answer with `command_output` frames rather than an
+/// agent turn.
+public struct CommandOutputEntry: Identifiable, Sendable, Equatable {
+	public let id: String
+	public let text: String
+
+	public init(id: String = UUID().uuidString, text: String) {
+		self.id = id
+		self.text = text
+	}
+}
+
 public struct FailureEntry: Identifiable, Sendable, Equatable {
 	public let id: String
 	public let text: String
@@ -154,6 +167,7 @@ public enum ConversationItem: Identifiable, Sendable, Equatable {
 	case assistant(AssistantTurn)
 	case tool(ToolActivity)
 	case notice(NoticeEntry)
+	case output(CommandOutputEntry)
 	case failure(FailureEntry)
 	case request(PendingRequest)
 
@@ -163,6 +177,7 @@ public enum ConversationItem: Identifiable, Sendable, Equatable {
 		case .assistant(let value): return "assistant:\(value.id)"
 		case .tool(let value): return "tool:\(value.id)"
 		case .notice(let value): return "notice:\(value.id)"
+		case .output(let value): return "output:\(value.id)"
 		case .failure(let value): return "failure:\(value.id)"
 		case .request(let value): return "request:\(value.id)"
 		}
@@ -175,6 +190,7 @@ public enum ConversationItem: Identifiable, Sendable, Equatable {
 		case .user(let turn): return turn.text
 		case .failure(let entry): return entry.text
 		case .notice(let entry): return entry.text
+		case .output(let entry): return entry.text
 		case .tool, .request: return nil
 		}
 	}

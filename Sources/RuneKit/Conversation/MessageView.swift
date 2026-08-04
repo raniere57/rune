@@ -209,3 +209,60 @@ struct AttachmentChip: View {
 		}
 	}
 }
+
+/// Output from a local slash command.
+///
+/// Monospaced and whitespace-preserving because these are terminal-shaped
+/// payloads — `/context` prints an aligned table, `/session` a key/value block.
+/// Long output collapses so a `/tools` dump cannot bury the conversation.
+struct CommandOutputView: View {
+	let entry: CommandOutputEntry
+	@State private var isExpanded = false
+
+	private static let collapsedLineLimit = 12
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: 4) {
+			HStack(spacing: 6) {
+				Image(systemName: "terminal")
+					.font(.system(size: 10))
+					.foregroundStyle(.tertiary)
+				Spacer(minLength: 0)
+				if isTruncatable {
+					Button(isExpanded ? "recolher" : "\(lines.count) linhas") {
+						withAnimation(.easeOut(duration: 0.12)) { isExpanded.toggle() }
+					}
+					.buttonStyle(.plain)
+					.font(.system(size: 10))
+					.foregroundStyle(.tertiary)
+				}
+			}
+
+			ScrollView(.horizontal, showsIndicators: false) {
+				Text(visibleText)
+					.font(.system(size: 11, design: .monospaced))
+					.textSelection(.enabled)
+					.fixedSize(horizontal: false, vertical: true)
+			}
+		}
+		.padding(.horizontal, 10)
+		.padding(.vertical, 8)
+		.frame(maxWidth: .infinity, alignment: .leading)
+		.background(.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+		.overlay(
+			RoundedRectangle(cornerRadius: 8, style: .continuous)
+				.strokeBorder(.white.opacity(0.06))
+		)
+	}
+
+	private var lines: [Substring] {
+		entry.text.split(separator: "\n", omittingEmptySubsequences: false)
+	}
+
+	private var isTruncatable: Bool { lines.count > Self.collapsedLineLimit }
+
+	private var visibleText: String {
+		guard isTruncatable, !isExpanded else { return entry.text }
+		return lines.prefix(Self.collapsedLineLimit).joined(separator: "\n") + "\n…"
+	}
+}

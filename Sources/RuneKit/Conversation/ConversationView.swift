@@ -71,6 +71,8 @@ public struct ConversationView: View {
 			ToolCallView(activity: activity)
 		case .notice(let entry):
 			NoticeView(entry: entry)
+		case .output(let entry):
+			CommandOutputView(entry: entry)
 		case .failure(let entry):
 			FailureView(entry: entry)
 		case .request(let pending):
@@ -123,6 +125,22 @@ public struct ConversationView: View {
 					isLocked: coordinator.isBusy,
 					onToggle: { coordinator.toggleMode() }
 				)
+
+				StatusChip(
+					symbol: "folder",
+					label: coordinator.workspace.url.lastPathComponent,
+					help: "Diretório de trabalho: \(coordinator.workspace.displayName)"
+				) {
+					coordinator.chooseWorkspace()
+				}
+
+				StatusChip(
+					symbol: "bubble.left.and.bubble.right",
+					label: "Conversas",
+					help: "Retomar uma conversa anterior ou começar outra"
+				) {
+					coordinator.presentSessionPicker()
+				}
 
 				if let hint = statusHint {
 					Text(hint)

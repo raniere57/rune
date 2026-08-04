@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 import os
@@ -68,6 +69,12 @@ public final class AgentCoordinator {
 	/// draining when the next one boots (a mode switch or `/cd` restarts it), and
 	/// a late `terminated` from the old one would otherwise stop the new one.
 	private var processGeneration = 0
+
+	/// Most recent transcripts on disk, for the conversation picker. Refreshed
+	/// on demand rather than watched: the list is only read when the menu opens.
+	public private(set) var recentSessions: [SessionSummary] = []
+	/// Path of the transcript currently loaded, so the picker can mark it.
+	public var activeSessionPath: String? { sessionFile }
 
 	// MARK: - Init
 
@@ -191,6 +198,102 @@ public final class AgentCoordinator {
 		transport.stopImmediately()
 	}
 
+	/// Opens the standard directory chooser and adopts the result.
+	public func chooseWorkspace() {
+		guard let picked = WorkspacePicker.chooseDirectory(
+			startingAt: workspace.resolvedExistingURL(),
+			host: hostWindow
+		) else { return }
+		Task { await changeWorkspace(to: picked) }
+	}
+
+	/// Lists past conversations and resumes the chosen one.
+	public func presentSessionPicker() {
+		Task { @MainActor in
+			await refreshRecentSessions()
+			SessionPicker.present(
+				sessions: recentSessions,
+				currentWorkspace: workspace.url,
+				currentSessionPath: sessionFile,
+				onNew: { [weak self] in
+					guard let self else { return }
+					Task { await self.startNewSession() }
+				},
+				onSelect: { [weak self] session in
+					guard let self else { return }
+					Task { await self.resume(session) }
+				}
+			)
+		}
+	}
+
+	/// The floating panel, when it exists — the pickers suspend its
+	/// hide-on-deactivate so it does not vanish behind the dialog.
+	private var hostWindow: NSWindow? {
+		NSApp.windows.first { $0 is FloatingPanel }
+	}
+
+	/// Reloads the on-disk transcript list off the main actor.
+	public func refreshRecentSessions() async {
+		let root = SessionStore.root(forSessionFile: sessionFile)
+		let found = await Task.detached(priority: .userInitiated) {
+			SessionStore.recentSessions(root: root)
+		}.value
+		recentSessions = found
+	}
+
+	/// Resumes a past conversation.
+	///
+	/// A transcript is bound to the directory it was recorded in, so resuming
+	/// one from elsewhere moves the workspace with it — otherwise every relative
+	/// path in that history would resolve against the wrong tree.
+	public func resume(_ session: SessionSummary) async {
+		guard !runState.isBusy else {
+			append(.notice(NoticeEntry(
+				level: .warning,
+				text: "Termine ou aborte a execução antes de trocar de conversa."
+			)))
+			return
+		}
+		guard session.path != sessionFile || items.isEmpty else { return }
+
+		let target = URL(fileURLWithPath: session.cwd).standardizedFileURL
+		let needsWorkspaceChange = !session.cwd.isEmpty && target != workspace.url
+
+		items.removeAll()
+		streamingAssistantId = nil
+		pendingRequestIds.removeAll()
+
+		if needsWorkspaceChange {
+			workspace = Workspace(url: target)
+			defaults.set(target.path, forKey: AppConfiguration.DefaultsKey.workspacePath)
+			append(.notice(NoticeEntry(level: .info, text: "Workspace: \(workspace.displayName)")))
+		}
+
+		sessionFile = session.path
+		defaults.set(session.path, forKey: AppConfiguration.DefaultsKey.lastSessionFile)
+
+		// cwd is fixed at launch, so a directory change needs a fresh process;
+		// otherwise the running one can just switch transcripts.
+		if needsWorkspaceChange, transport.isRunning {
+			await shutdown(reason: "resuming a session from another directory")
+		}
+
+		do {
+			try await ensureRunning()
+			if !needsWorkspaceChange {
+				_ = try await request(.switchSession(path: session.path), timeout: .seconds(30))
+				await restoreHistory()
+				await refreshState()
+			}
+		} catch {
+			append(.failure(FailureEntry(
+				text: "Não foi possível retomar a conversa.",
+				detail: error.localizedDescription
+			)))
+		}
+	}
+
 	/// `Tab`. Refused mid-run: the tool registry cannot change under a turn
 	/// that is already using it.
 	@discardableResult
@@ -249,8 +352,10 @@ public final class AgentCoordinator {
 	private func run(local command: LocalCommand) async {
 		switch command {
 		case .changeDirectory(let path):
+			// Bare `/cd` opens the chooser rather than printing the current
+			// path, which the status chip already shows.
 			guard !path.isEmpty else {
-				append(.notice(NoticeEntry(level: .info, text: "Workspace atual: \(workspace.displayName)")))
+				chooseWorkspace()
 				return
 			}
 			await changeWorkspace(to: URL(fileURLWithPath: (path as NSString).expandingTildeInPath))
@@ -737,7 +842,15 @@ public final class AgentCoordinator {
 		case .availableCommands(let commands):
 			store(ompCommands: commands)
 
-		case .commandOutput, .subagent, .unknown:
+		case .commandOutput(let payload):
+			// `/session`, `/context`, `/usage`, `/tools` and every other local
+			// slash command answer here instead of through an agent turn.
+			// Dropping these frames is why those commands used to do nothing.
+			let text = payload["text"]?.stringValue ?? ""
+			guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+			append(.output(CommandOutputEntry(text: text)))
+
+		case .subagent, .unknown:
 			break
 
 		case .extensionError(let path, let event, let message):

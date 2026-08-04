@@ -8,6 +8,30 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
 
 ## [Não publicado]
 
+## [0.5.0] — 2026-08-04
+
+### Corrigido
+
+- **`/session`, `/context`, `/usage`, `/tools` e companhia não faziam nada.**
+  Esses comandos não iniciam um turno do agente: respondem com frames
+  `command_output`, que o app decodificava e descartava. Agora são renderizados
+  em bloco monoespaçado, recolhido acima de 12 linhas.
+
+### Adicionado
+
+- **Seletor de diretório nativo.** O chip da pasta abre o `NSOpenPanel` padrão
+  do macOS. `/cd` sem argumento abre o mesmo seletor. O `hidesOnDeactivate` do
+  painel é suspenso enquanto o diálogo está aberto, senão o painel sumiria no
+  instante em que o Finder tomasse o foco.
+- **Seletor de conversas.** O chip **Conversas** lista as sessões recentes lidas
+  dos transcritos do `omp`, com **Nova conversa** no topo. As do diretório atual
+  vêm primeiro; retomar uma de outra pasta move o workspace junto, senão os
+  caminhos relativos daquele histórico resolveriam na árvore errada. A sessão
+  em uso aparece marcada e desabilitada.
+- Frames `config_update` e `session_info_update` do `omp` passam a atualizar
+  modelo e effort exibidos.
+
+
 ## [0.4.1] — 2026-08-04
 
 ### Adicionado
@@ -169,7 +193,8 @@ Primeira versão. GUI nativa mínima para o `omp`, na barra de menus.
   testado; falta rotear para um modelo de visão.
 - Assinatura ad-hoc — o Gatekeeper bloqueia na primeira abertura.
 
-[Não publicado]: https://github.com/raniere57/rune/compare/v0.4.1...HEAD
+[Não publicado]: https://github.com/raniere57/rune/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/raniere57/rune/releases/tag/v0.5.0
 [0.4.1]: https://github.com/raniere57/rune/releases/tag/v0.4.1
 [0.4.0]: https://github.com/raniere57/rune/releases/tag/v0.4.0
 [0.3.0]: https://github.com/raniere57/rune/releases/tag/v0.3.0
