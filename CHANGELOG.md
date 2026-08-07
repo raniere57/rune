@@ -8,6 +8,23 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
 
 ## [Não publicado]
 
+## [0.8.1] — 2026-08-06
+
+### Corrigido
+
+- **`Shift + Enter` quebrava linha? Não — enviava a mensagem.**
+
+  O `StandardKeyBinding.dict` do AppKit não tem entrada para `Shift + Return`:
+  ele cai no mesmo `insertNewline:` de um Return puro, e o modificador já não
+  existe quando o `doCommand(by:)` roda. O código roteava a quebra de linha por
+  `insertNewlineIgnoringFieldEditor:`, que na verdade está mapeado em
+  **`Option + Return`** (`~\r`) — então esse caminho nunca era acionado por
+  Shift, e toda quebra de linha virava um envio.
+
+  A separação passou para o `keyDown(with:)`, onde o modificador ainda está no
+  evento. `Option + Enter` continua quebrando linha, e o Enter puro continua
+  enviando. Vale para o Enter do teclado numérico também.
+
 ## [0.8.0] — 2026-08-04
 
 ### Adicionado
@@ -365,6 +382,7 @@ Primeira versão. GUI nativa mínima para o `omp`, na barra de menus.
 - Assinatura ad-hoc — o Gatekeeper bloqueia na primeira abertura.
 
 [Não publicado]: https://github.com/raniere57/rune/compare/v0.8.0...HEAD
+[0.8.1]: https://github.com/raniere57/rune/releases/tag/v0.8.1
 [0.8.0]: https://github.com/raniere57/rune/releases/tag/v0.8.0
 [0.7.2]: https://github.com/raniere57/rune/releases/tag/v0.7.2
 [0.7.1]: https://github.com/raniere57/rune/releases/tag/v0.7.1

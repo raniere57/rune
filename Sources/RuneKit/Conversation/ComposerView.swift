@@ -432,6 +432,21 @@ final class InterceptingTextView: NSTextView {
 		DispatchQueue.main.async { window.makeFirstResponder(self) }
 	}
 
+	/// Splits Shift+Return off from a bare Return before the key bindings do.
+	///
+	/// AppKit's `StandardKeyBinding.dict` has no entry for Shift+Return: it
+	/// resolves to the same `insertNewline:` as a plain Return, so by the time
+	/// `doCommand(by:)` runs the modifier is gone and every line break looked
+	/// like a send. `insertNewlineIgnoringFieldEditor:` is bound to *Option*
+	/// +Return (`~\r`), not Shift — which is why routing it there did nothing.
+	override func keyDown(with event: NSEvent) {
+		if event.isReturnKey, event.modifierFlags.contains(.shift) {
+			super.insertNewline(self)
+			return
+		}
+		super.keyDown(with: event)
+	}
+
 	override func doCommand(by selector: Selector) {
 		switch selector {
 		case #selector(insertNewline(_:)):
@@ -439,7 +454,7 @@ final class InterceptingTextView: NSTextView {
 		case #selector(cancelOperation(_:)):
 			onEscape?()
 		case #selector(insertNewlineIgnoringFieldEditor(_:)):
-			// Shift+Enter — the one path that actually inserts a line break.
+			// Option+Enter, the other way to get a line break.
 			super.insertNewline(self)
 		case #selector(moveUp(_:)):
 			// Only steal the arrows while the popup is open; otherwise they
@@ -462,5 +477,13 @@ final class InterceptingTextView: NSTextView {
 	override func paste(_ sender: Any?) {
 		if onPaste?() == true { return }
 		pasteAsPlainText(sender)
+	}
+}
+
+extension NSEvent {
+	/// True for Return and for the keypad's Enter (which reports `\u{3}`).
+	var isReturnKey: Bool {
+		guard let characters = charactersIgnoringModifiers else { return false }
+		return characters == "\r" || characters == "\n" || characters == "\u{3}"
 	}
 }

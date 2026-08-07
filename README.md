@@ -176,7 +176,7 @@ da runa Algiz (ᛉ).
 | Abrir/fechar o painel | `Control + Option + Espaço`, ou clique no ícone |
 | Menu (status, nova conversa, sair) | clique com o botão direito no ícone |
 | Enviar | `Enter`, ou o botão `↑` |
-| Quebrar linha | `Shift + Enter` |
+| Quebrar linha | `Shift + Enter`, ou `Option + Enter` |
 | Fechar o painel | `Esc` — a tarefa em andamento continua |
 | Nova conversa | `⌘K` (pede confirmação se houver histórico) |
 | Abortar a execução | `⌘.`, ou o botão quadrado vermelho (só aparece durante a execução) |
