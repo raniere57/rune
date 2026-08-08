@@ -53,6 +53,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 		Task { await coordinator.restoreConversationFromDisk() }
 
 		observeRunState()
+		// Provisional, so it never interrupts with a permission dialog — the
+		// first notification simply lands quietly in Notification Centre.
+		CompletionNotifier.prepare()
 		logger.info("\(AppConfiguration.appName, privacy: .public) ready")
 	}
 
@@ -81,6 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 		panel.present()
 		// Whatever finished while the panel was closed is now on screen.
 		statusItem.acknowledgeCompletion()
+		CompletionNotifier.clearDelivered()
 		// On the first show the text view claims focus from
 		// `viewDidMoveToWindow`; on every later show the view already has its
 		// window, so focus is restored explicitly here.
@@ -183,12 +187,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 		} onChange: {
 			Task { @MainActor [weak self] in
 				guard let self else { return }
-				self.statusItem.update(
-					state: self.coordinator.runState,
-					panelIsVisible: self.panel?.isVisible == true
-				)
+				let state = self.coordinator.runState
+				let panelIsVisible = self.panel?.isVisible == true
+				self.statusItem.update(state: state, panelIsVisible: panelIsVisible)
+				self.announceIfFinished(state: state, panelIsVisible: panelIsVisible)
 				self.scheduleRunStateObservation()
 			}
 		}
+	}
+
+	/// Was the previous state one where work was in flight. Needed because the
+	/// interesting event is the *transition* out of busy, not the state itself.
+	private var wasWorking = false
+
+	private func announceIfFinished(state: AgentRunState, panelIsVisible: Bool) {
+		defer { wasWorking = state.isBusy }
+		guard wasWorking, !state.isBusy, !panelIsVisible else { return }
+		CompletionNotifier.notifyFinished(
+			state: state,
+			workspaceName: coordinator.workspace.url.lastPathComponent
+		)
 	}
 }

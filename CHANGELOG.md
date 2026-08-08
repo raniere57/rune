@@ -8,6 +8,47 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
 
 ## [Não publicado]
 
+## [0.11.0] — 2026-08-08
+
+Terceira e última leva da auditoria: capacidades. Continua sem timer, sem
+polling e sem processo extra.
+
+### Adicionado
+
+- **O app sobrevive à aposentadoria do modelo.** Um id de modelo hardcoded é um
+  ponto único de falha que o app não consegue consertar em runtime: no dia em que
+  o provedor retirar o `deepseek-v4-flash-free`, toda instalação fica morta até
+  sair uma release. Agora, se o modelo configurado sumir do catálogo, o boot cai
+  no modelo **gratuito** com maior janela de contexto que o provedor ainda
+  oferece — hoje seriam nove candidatos, com o `nemotron-3-ultra-free` (1M de
+  contexto) na frente — e diz isso em um aviso visível. Um modelo pago nunca é
+  escolhido: uma retirada de catálogo não pode virar uma fatura surpresa. Sem
+  nenhum modelo grátis, o boot continua falhando como antes.
+
+- **Arrastar e soltar.** Arquivos, pastas e imagens agora podem ser arrastados
+  para qualquer parte do painel — o gesto mais natural do macOS, e o único
+  caminho de entrada que faltava, porque todo o pipeline de anexos já existia
+  para o `⌘V`. Uma pasta solta vira o workspace, igual ao paste. TIFF e outros
+  formatos são reconvertidos para PNG.
+
+- **Abrir no login**, no menu de clique direito do ícone. `SMAppService.mainApp`
+  não usa app auxiliar, não usa daemon e não deixa processo nenhum rodando — o
+  `launchd` faz o trabalho.
+
+- **Notificação quando a tarefa termina com o painel fechado.** Complementa a
+  marca no ícone: uma cobre quem olha para a barra, a outra cobre quem não olha.
+  A autorização é *provisional*, então nunca aparece um diálogo pedindo
+  permissão — a primeira notificação chega silenciosamente na Central. Abrir o
+  painel limpa a notificação.
+
+### Notas
+
+- `/compact` **já funcionava** por encaminhamento, verificado contra o `omp`
+  real: qualquer `/comando` desconhecido vai como prompt e o `omp` responde com
+  `command_output`. A auditoria apontou o comando RPC `compact` como não usado —
+  é verdade, mas a necessidade do usuário já estava atendida, então não há código
+  novo aqui.
+
 ## [0.10.0] — 2026-08-08
 
 A segunda leva da auditoria: a interface. Tudo aqui custa zero em RAM ociosa —
@@ -496,6 +537,7 @@ Primeira versão. GUI nativa mínima para o `omp`, na barra de menus.
 - Assinatura ad-hoc — o Gatekeeper bloqueia na primeira abertura.
 
 [Não publicado]: https://github.com/raniere57/rune/compare/v0.8.0...HEAD
+[0.11.0]: https://github.com/raniere57/rune/releases/tag/v0.11.0
 [0.10.0]: https://github.com/raniere57/rune/releases/tag/v0.10.0
 [0.9.0]: https://github.com/raniere57/rune/releases/tag/v0.9.0
 [0.8.1]: https://github.com/raniere57/rune/releases/tag/v0.8.1

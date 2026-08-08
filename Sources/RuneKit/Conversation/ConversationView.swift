@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Root panel content: history above, composer below, nothing else.
 ///
@@ -13,6 +14,7 @@ public struct ConversationView: View {
 	/// Whether streamed text should keep scrolling the view. False while the user
 	/// is reading further up.
 	@State private var isPinnedToBottom = true
+	@State private var isDropTargeted = false
 
 	public init(coordinator: AgentCoordinator, composer: ComposerModel) {
 		self.coordinator = coordinator
@@ -27,6 +29,23 @@ public struct ConversationView: View {
 			}
 			composerSection
 		}
+		// The whole panel is the drop target, not just the text field: aiming a
+		// drag at a 44pt strip is needless precision when nothing else here wants
+		// a drop.
+		.onDrop(of: DroppedItems.acceptedTypes, isTargeted: $isDropTargeted) { providers in
+			composer.handleDrop(providers)
+		}
+		.overlay {
+			if isDropTargeted {
+				RoundedRectangle(cornerRadius: 14, style: .continuous)
+					.strokeBorder(Color.accentColor, lineWidth: 2)
+					.background(Color.accentColor.opacity(0.06))
+					.clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+					.allowsHitTesting(false)
+					.transition(.opacity)
+			}
+		}
+		.animation(.easeOut(duration: 0.12), value: isDropTargeted)
 		// Fixed width: the panel is borderless, so nothing else constrains the
 		// horizontal axis and SwiftUI would otherwise collapse to its content.
 		.frame(width: AppConfiguration.panelWidth)
@@ -362,6 +381,39 @@ public final class ComposerModel {
 			stage(staged)
 			return true
 		}
+	}
+
+	/// Stages a drag-and-drop payload. Returns `true` when at least one provider
+	/// was something the composer can take, which is what tells AppKit to accept
+	/// the drop.
+	public func handleDrop(_ providers: [NSItemProvider]) -> Bool {
+		let usable = providers.filter {
+			$0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
+				|| $0.hasItemConformingToTypeIdentifier(UTType.image.identifier)
+		}
+		guard !usable.isEmpty else { return false }
+
+		// Providers resolve asynchronously and in no guaranteed order, so each
+		// one stages itself as it arrives rather than the batch waiting on its
+		// slowest member.
+		for provider in usable {
+			if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+				_ = provider.loadObject(ofClass: URL.self) { url, _ in
+					guard let url, url.isFileURL else { return }
+					Task { @MainActor [weak self] in
+						self?.stage([DroppedItems.attachment(forFileAt: url)])
+					}
+				}
+				continue
+			}
+			provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
+				guard let data, let attachment = DroppedItems.attachment(forImageData: data) else { return }
+				Task { @MainActor [weak self] in
+					self?.stage([attachment])
+				}
+			}
+		}
+		return true
 	}
 
 	private func stage(_ staged: [PendingAttachment]) {

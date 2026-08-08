@@ -21,6 +21,11 @@ final class FakeOmpTransport: OmpTransport, @unchecked Sendable {
 	/// Reasoning efforts the fake model advertises, mirroring the real catalogue.
 	var modelEfforts: [String] = ["high", "max"]
 	var modelInputs: [String] = ["text"]
+	/// Per-token price the catalogue reports. Zero is what every model the app
+	/// targets costs; a non-zero value exercises the "no free fallback" path.
+	var modelCost: Double = 0
+	/// Per-model context window, so fallback ordering can be exercised.
+	var contextWindows: [String: Int] = [:]
 	var sessionFile = "/tmp/rune-test/session.jsonl"
 	/// Makes `switch_session` answer `success: true` with `cancelled: true`.
 	var cancelsSwitchSession = false
@@ -30,6 +35,9 @@ final class FakeOmpTransport: OmpTransport, @unchecked Sendable {
 	private(set) var chunkReassemblyLimit: Int?
 	private(set) var stopCount = 0
 	private(set) var thinkingLevel: String?
+	/// Whatever `set_model` last accepted, so `get_state` reports the truth
+	/// instead of always echoing the configured model.
+	private(set) var selectedModelId = AppConfiguration.primaryModelId
 	private(set) var launchedMode: AgentMode?
 	private(set) var launchCount = 0
 
@@ -148,6 +156,7 @@ final class FakeOmpTransport: OmpTransport, @unchecked Sendable {
 				""")
 				return
 			}
+			selectedModelId = modelId
 			emit("""
 			{\(identifier)"type":"response","command":"set_model","success":true,\
 			"data":\(modelJSON(id: modelId))}
@@ -156,7 +165,7 @@ final class FakeOmpTransport: OmpTransport, @unchecked Sendable {
 		case .getState:
 			emit("""
 			{\(identifier)"type":"response","command":"get_state","success":true,\
-			"data":{"model":\(modelJSON(id: AppConfiguration.primaryModelId)),\
+			"data":{"model":\(modelJSON(id: selectedModelId)),\
 			"isStreaming":false,"isCompacting":false,"sessionId":"s1",\
 			"sessionFile":"\(sessionFile)","messageCount":0,"queuedMessageCount":0,\
 			"todoPhases":[],"autoCompactionEnabled":true,"fastModeEnabled":false,\
@@ -229,10 +238,12 @@ final class FakeOmpTransport: OmpTransport, @unchecked Sendable {
 	private func modelJSON(id: String) -> String {
 		let inputs = modelInputs.map { "\"\($0)\"" }.joined(separator: ",")
 		let efforts = modelEfforts.map { "\"\($0)\"" }.joined(separator: ",")
+		let contextWindow = contextWindows[id] ?? 200_000
 		return """
 		{"id":"\(id)","name":"\(id)","api":"openai-completions",\
 		"provider":"\(AppConfiguration.providerId)","baseUrl":"https://opencode.ai/zen/v1",\
-		"reasoning":true,"input":[\(inputs)],"contextWindow":200000,"maxTokens":128000,\
+		"reasoning":true,"input":[\(inputs)],"contextWindow":\(contextWindow),"maxTokens":128000,\
+		"cost":{"input":\(modelCost),"output":\(modelCost),"cacheRead":0,"cacheWrite":0},\
 		"thinking":{"mode":"effort","efforts":[\(efforts)]}}
 		"""
 	}

@@ -134,6 +134,19 @@ public final class StatusItemController {
 		toggle.target = self
 		menu.addItem(toggle)
 
+		// The only settings-shaped control in the app, and it lives here because
+		// this menu is the alternative to a settings screen.
+		if LaunchAtLogin.isAvailable {
+			let login = NSMenuItem(
+				title: "Abrir no login",
+				action: #selector(toggleLaunchAtLogin),
+				keyEquivalent: ""
+			)
+			login.target = self
+			login.state = LaunchAtLogin.isEnabled ? .on : .off
+			menu.addItem(login)
+		}
+
 		menu.addItem(.separator())
 		let quit = NSMenuItem(title: "Sair", action: #selector(triggerQuit), keyEquivalent: "q")
 		quit.target = self
@@ -145,6 +158,7 @@ public final class StatusItemController {
 		statusItem.menu = nil
 	}
 
+	@objc private func toggleLaunchAtLogin() { LaunchAtLogin.toggle() }
 	@objc private func triggerToggle() { onToggle?() }
 	@objc private func triggerNewSession() { onNewSession?() }
 	@objc private func triggerQuit() { onQuit?() }

@@ -726,8 +726,14 @@ public final class AgentCoordinator {
 		continuation.resume(throwing: error)
 	}
 
-	/// Resolves the configured provider/model against the live catalogue.
-	/// Never falls back to a different model silently.
+	/// Resolves the configured provider/model against the live catalogue, and
+	/// falls back to another free model — loudly — if it is gone.
+	///
+	/// The fallback exists because a hardcoded model id is a single point of
+	/// failure the app cannot fix at runtime: when the provider retires
+	/// `deepseek-v4-flash-free`, every install is dead until a new release ships.
+	/// The provider carries nine zero-cost models today, so surviving that costs
+	/// nothing but a notice.
 	private func selectModel() async throws {
 		let response = try await request(.getAvailableModels, timeout: .seconds(30))
 		let models = response.data?["models"]?.arrayValue ?? []
@@ -737,29 +743,67 @@ public final class AgentCoordinator {
 			throw AgentError.providerUnavailable(AppConfiguration.providerId)
 		}
 
-		guard let match = providerModels.first(where: { $0["id"]?.stringValue == AppConfiguration.primaryModelId })
+		if let match = providerModels.first(where: { $0["id"]?.stringValue == AppConfiguration.primaryModelId }) {
+			try await activate(model: match, id: AppConfiguration.primaryModelId)
+			return
+		}
+
+		// Dated variants (e.g. `-0731`) only exist if the catalogue says so;
+		// report what is actually there instead of guessing an id.
+		let nearMatches = providerModels
+			.compactMap { $0["id"]?.stringValue }
+			.filter { $0.contains(AppConfiguration.primaryModelId) }
+		rpcLog.error("""
+		model \(AppConfiguration.primaryModelSelector, privacy: .public) not in catalogue; \
+		near matches: \(nearMatches.joined(separator: ", "), privacy: .public)
+		""")
+
+		guard let fallback = Self.freeFallback(in: providerModels),
+		      let fallbackId = fallback["id"]?.stringValue
 		else {
-			// Dated variants (e.g. `-0731`) only exist if the catalogue says so;
-			// report what is actually there instead of guessing an id.
-			let candidates = providerModels
-				.compactMap { $0["id"]?.stringValue }
-				.filter { $0.contains(AppConfiguration.primaryModelId) }
-			rpcLog.error("""
-			model \(AppConfiguration.primaryModelSelector, privacy: .public) not in catalogue; \
-			near matches: \(candidates.joined(separator: ", "), privacy: .public)
-			""")
 			throw AgentError.modelUnavailable(
 				selector: AppConfiguration.primaryModelSelector,
-				nearMatches: candidates
+				nearMatches: nearMatches
 			)
 		}
 
-		let setResponse = try await request(
-			.setModel(provider: AppConfiguration.providerId, modelId: AppConfiguration.primaryModelId),
+		// Never silent: the answer quality changes, and the user has to be able to
+		// tell that it did.
+		append(.notice(NoticeEntry(
+			level: .warning,
+			text: """
+			`\(AppConfiguration.primaryModelSelector)` saiu do catálogo. \
+			Usando `\(AppConfiguration.providerId)/\(fallbackId)`, também sem custo.
+			"""
+		)))
+		try await activate(model: fallback, id: fallbackId)
+	}
+
+	private func activate(model: JSONValue, id: String) async throws {
+		let response = try await request(
+			.setModel(provider: AppConfiguration.providerId, modelId: id),
 			timeout: .seconds(30)
 		)
-		apply(model: setResponse.data ?? match)
-		try await applyThinkingLevel(for: setResponse.data ?? match)
+		apply(model: response.data ?? model)
+		try await applyThinkingLevel(for: response.data ?? model)
+	}
+
+	/// The roomiest zero-cost model in the provider's catalogue.
+	///
+	/// Free means the provider charges nothing for input *or* output, which is
+	/// the whole premise of the app — a paid fallback would turn a retired model
+	/// into a surprise bill. Context window breaks the tie, then id, so the choice
+	/// is deterministic across launches rather than dependent on catalogue order.
+	nonisolated static func freeFallback(in models: [JSONValue]) -> JSONValue? {
+		models
+			.filter { $0["cost"]?["input"]?.doubleValue == 0 && $0["cost"]?["output"]?.doubleValue == 0 }
+			.sorted {
+				let left = $0["contextWindow"]?.doubleValue ?? 0
+				let right = $1["contextWindow"]?.doubleValue ?? 0
+				if left != right { return left > right }
+				return ($0["id"]?.stringValue ?? "") < ($1["id"]?.stringValue ?? "")
+			}
+			.first
 	}
 
 	/// Requests the configured reasoning effort, clamped to what the model

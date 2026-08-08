@@ -183,6 +183,8 @@ da runa Algiz (ᛉ).
 | Copiar a última resposta | `⌘⇧C` |
 | Copiar a seleção | `⌘C` — o normal do sistema, em qualquer parte do painel |
 | Colar | `⌘V` — texto, imagem, arquivo ou pasta |
+| Arrastar e soltar | solte arquivos, pastas ou imagens em qualquer parte do painel |
+| Abrir no login | clique com o botão direito no ícone da barra |
 | Lista de comandos | digite `/` — `↑↓` navega, `⇥`/`Enter` completa, `Esc` fecha |
 | Alternar Plan / Build | `⇥` com o campo sem lista aberta, ou clique no chip |
 | Trocar de diretório | clique no chip da pasta, ou `/cd` sem argumento |
@@ -564,7 +566,7 @@ constante.
 swift test
 ```
 
-**174 testes, 25 suítes.** Nenhum gasta token.
+**188 testes, 28 suítes.** Nenhum gasta token.
 
 | Suíte | Cobre |
 |---|---|
@@ -588,6 +590,9 @@ swift test
 | Tool argument clamping | corte na construção, recursão em árvore, string curta intacta |
 | Retry after a failure | nada a repetir no início, última mensagem, anexo bloqueia, ocupado bloqueia, reenvio |
 | Menu bar completion mark | marca ao terminar com painel fechado, silêncio com painel aberto, run novo limpa |
+| Free model fallback | maior contexto grátis, nunca um pago, custo de saída conta, empate determinístico |
+| Boot with the model gone | boot sobrevive e avisa, sem grátis ainda falha, boot normal intacto |
+| Dropped items | pasta vs arquivo, PNG e JPEG intactos, bytes ilegíveis recusados |
 | Context across an idle shutdown | o segundo prompt retoma a mesma sessão |
 | OMP integration | contra o binário real |
 
@@ -725,7 +730,7 @@ pagar nada e sem nenhuma caixa-preta no meio. Open source é lindo mesmo.
 ```bash
 git clone https://github.com/raniere57/rune.git && cd rune
 brew install can1357/tap/omp
-swift test          # 174 testes, nenhum gasta token
+swift test          # 188 testes, nenhum gasta token
 ./scripts/build-app.sh release && open build/Rune.app
 ```
 

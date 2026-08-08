@@ -80,15 +80,23 @@ struct AgentCoordinatorTests {
 		#expect(!transport.isRunning)
 	}
 
-	@Test("an absent model fails loudly instead of falling back to another one")
-	func modelUnavailableIsNotSubstituted() async throws {
+	@Test("an absent model substitutes another free one, and never a paid one")
+	func modelUnavailableFallsBackToFree() async throws {
 		let transport = FakeOmpTransport()
 		transport.catalogue = ["claude-opus-5", "deepseek-v4-flash-0731"]
 		let coordinator = makeCoordinator(transport: transport)
 
-		await #expect(throws: AgentError.self) { try await coordinator.ensureRunning() }
-		// No `set_model` for a different id was ever attempted.
-		#expect(!transport.commandTypes().contains("set_model"))
+		// A hardcoded model id is a single point of failure the app cannot repair
+		// at runtime: when the provider retires it, refusing to boot leaves every
+		// install dead until a release ships. Substituting is allowed — silently
+		// substituting, or substituting something billable, is not.
+		try await coordinator.ensureRunning()
+		#expect(coordinator.runState == .ready)
+		#expect(coordinator.activeModelDescription != AppConfiguration.primaryModelSelector)
+		#expect(coordinator.items.contains {
+			guard case .notice(let entry) = $0 else { return false }
+			return entry.level == .warning
+		})
 	}
 
 	@Test("image support is read from the model's declared input kinds")
