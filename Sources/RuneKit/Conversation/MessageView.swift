@@ -37,6 +37,9 @@ struct AssistantMessageView: View {
 				case .prose(_, let text):
 					Text(AttributedString.inlineMarkdown(text))
 						.font(.system(size: 13))
+						// A 720pt line of 13pt text is long; without extra leading
+						// the eye loses its place returning to the next line.
+						.lineSpacing(2.5)
 						.textSelection(.enabled)
 						.fixedSize(horizontal: false, vertical: true)
 						.frame(maxWidth: .infinity, alignment: .leading)
@@ -80,6 +83,7 @@ struct CodeBlockView: View {
 			RoundedRectangle(cornerRadius: 8, style: .continuous)
 				.strokeBorder(PanelStyle.faintHairline)
 		)
+		.copyable(code)
 	}
 }
 
@@ -137,6 +141,10 @@ struct NoticeView: View {
 
 struct FailureView: View {
 	let entry: FailureEntry
+	/// Offered only on the failure that ends the conversation, and only when the
+	/// message can actually be reproduced — see `AgentCoordinator.canRetry`.
+	var onRetry: (() -> Void)?
+
 	@State private var isExpanded = false
 
 	var body: some View {
@@ -150,6 +158,15 @@ struct FailureView: View {
 					.textSelection(.enabled)
 					.fixedSize(horizontal: false, vertical: true)
 				Spacer(minLength: 0)
+				if let onRetry {
+					Button(action: onRetry) {
+						Label("tentar de novo", systemImage: "arrow.clockwise")
+							.labelStyle(.titleAndIcon)
+					}
+					.buttonStyle(.plain)
+					.font(.system(size: 11))
+					.foregroundStyle(.secondary)
+				}
 				if entry.detail != nil {
 					Button(isExpanded ? "menos" : "detalhes") { isExpanded.toggle() }
 						.buttonStyle(.plain)
@@ -253,6 +270,7 @@ struct CommandOutputView: View {
 			RoundedRectangle(cornerRadius: 8, style: .continuous)
 				.strokeBorder(PanelStyle.faintHairline)
 		)
+		.copyable(entry.text)
 	}
 
 	private var lines: [Substring] {

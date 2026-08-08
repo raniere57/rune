@@ -10,6 +10,10 @@ public struct ConversationView: View {
 	@Bindable var coordinator: AgentCoordinator
 	@Bindable var composer: ComposerModel
 
+	/// Whether streamed text should keep scrolling the view. False while the user
+	/// is reading further up.
+	@State private var isPinnedToBottom = true
+
 	public init(coordinator: AgentCoordinator, composer: ComposerModel) {
 		self.coordinator = coordinator
 		self.composer = composer
@@ -48,25 +52,60 @@ public struct ConversationView: View {
 					}
 					// Anchor for auto-scroll; scrolling to the last item would
 					// stop short while its text is still growing.
-					Color.clear.frame(height: 1).id(Self.bottomAnchor)
+					Color.clear.frame(height: 1)
+						.id(Self.bottomAnchor)
+						.background(distanceReporter)
 				}
 				.padding(.horizontal, 16)
 				.padding(.vertical, 14)
 			}
+			.coordinateSpace(name: Self.scrollSpace)
 			.frame(maxHeight: AppConfiguration.historyMaxHeight)
+			.onPreferenceChange(DistanceFromBottom.self) { distance in
+				isPinnedToBottom = distance <= Self.pinThreshold
+			}
 			.onChange(of: coordinator.items.count) {
+				// A new item always follows: the user asked for it, or the agent
+				// moved on to something they should see.
+				isPinnedToBottom = true
 				withAnimation(.easeOut(duration: 0.15)) {
 					proxy.scrollTo(Self.bottomAnchor, anchor: .bottom)
 				}
 			}
 			.onChange(of: streamingSignature) {
+				// Growing text only follows while the user is already at the
+				// bottom. Following unconditionally made it impossible to read
+				// back through a long answer — every token yanked the view down.
+				guard isPinnedToBottom else { return }
 				proxy.scrollTo(Self.bottomAnchor, anchor: .bottom)
 			}
 			.onChange(of: showsActivityRow) {
+				guard isPinnedToBottom else { return }
 				withAnimation(.easeOut(duration: 0.15)) {
 					proxy.scrollTo(Self.bottomAnchor, anchor: .bottom)
 				}
 			}
+		}
+	}
+
+	/// Reports how far the end of the transcript sits below the visible area.
+	///
+	/// Measured in the scroll view's own coordinate space, whose origin is the
+	/// top of the *viewport*, so the anchor's `minY` is its distance from there.
+	/// Subtracting the viewport height gives zero when scrolled to the bottom and
+	/// grows as the user scrolls up.
+	///
+	/// `historyMaxHeight` is the right height to subtract in both cases: when the
+	/// transcript is tall the frame is exactly that, and when it is short the
+	/// result goes negative — which reads as pinned, correctly, since there is
+	/// nothing to scroll.
+	private var distanceReporter: some View {
+		GeometryReader { anchor in
+			Color.clear.preference(
+				key: DistanceFromBottom.self,
+				value: anchor.frame(in: .named(Self.scrollSpace)).minY
+					- AppConfiguration.historyMaxHeight
+			)
 		}
 	}
 
@@ -84,7 +123,15 @@ public struct ConversationView: View {
 		case .output(let entry):
 			CommandOutputView(entry: entry)
 		case .failure(let entry):
-			FailureView(entry: entry)
+			// Retry is only offered on the failure that ends the conversation:
+			// on an older one it would re-send a message the user has already
+			// moved past.
+			FailureView(
+				entry: entry,
+				onRetry: isLastItem(entry.id) && coordinator.retryableMessage != nil
+					? { Task { await coordinator.retryLastMessage() } }
+					: nil
+			)
 		case .request(let pending):
 			ExtensionRequestView(pending: pending) { answer in
 				coordinator.answer(requestId: pending.id, with: answer)
@@ -133,6 +180,7 @@ public struct ConversationView: View {
 				workspaceHelp: "Diretório de trabalho: \(coordinator.workspace.displayName)",
 				statusHint: statusHint,
 				canSend: composer.canSend,
+				contextPercent: coordinator.contextPercent,
 				onToggleMode: { coordinator.toggleMode() },
 				onChooseWorkspace: { coordinator.chooseWorkspace() },
 				onChooseSession: { coordinator.presentSessionPicker() },
@@ -143,6 +191,11 @@ public struct ConversationView: View {
 		.padding(.horizontal, 14)
 		.padding(.vertical, 12)
 		.animation(.easeOut(duration: 0.12), value: composer.isSuggesting)
+	}
+
+	private func isLastItem(_ failureId: String) -> Bool {
+		guard case .failure(let entry) = coordinator.items.last else { return false }
+		return entry.id == failureId
 	}
 
 	private var placeholder: String {
@@ -178,6 +231,20 @@ public struct ConversationView: View {
 	}
 
 	private static let bottomAnchor = "rune.bottom"
+	private static let scrollSpace = "rune.history"
+	/// Slack allowed before the view is considered "scrolled away". A couple of
+	/// lines, so a rubber-band overshoot or a rounding difference does not stop
+	/// the stream from following.
+	private static let pinThreshold: CGFloat = 40
+}
+
+/// Distance between the end of the transcript and the bottom of the viewport.
+private struct DistanceFromBottom: PreferenceKey {
+	static let defaultValue: CGFloat = 0
+
+	static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+		value = nextValue()
+	}
 }
 
 /// Composer-local state and the actions the text view triggers.

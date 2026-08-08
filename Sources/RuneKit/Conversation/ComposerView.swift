@@ -102,6 +102,9 @@ struct ComposerFooter: View {
 	let workspaceHelp: String
 	let statusHint: String?
 	let canSend: Bool
+	/// Fraction of the model's context window in use, when it is high enough to
+	/// matter.
+	let contextPercent: Double?
 
 	let onToggleMode: () -> Void
 	let onChooseWorkspace: () -> Void
@@ -125,6 +128,10 @@ struct ComposerFooter: View {
 				StatusChip(symbol: "bubble.left.and.bubble.right", label: "Conversas",
 				           help: "Retomar uma conversa anterior ou começar outra",
 				           action: onChooseSession)
+
+				if let contextPercent, contextPercent >= Self.contextWarningPercent {
+					ContextGauge(percent: contextPercent)
+				}
 			}
 
 			if let statusHint {
@@ -155,6 +162,30 @@ struct ComposerFooter: View {
 		}
 		.frame(height: ComposerMetrics.controlHeight)
 		.padding(.horizontal, ComposerMetrics.horizontalInset)
+	}
+
+	/// Below this the number is noise; above it the user should see compaction
+	/// coming, because a full context degrades the answer silently.
+	static let contextWarningPercent: Double = 60
+	static let contextCriticalPercent: Double = 85
+}
+
+/// How much of the context window is spent. Rendered only past the warning
+/// threshold, so the common case costs nothing and adds no clutter.
+struct ContextGauge: View {
+	let percent: Double
+
+	var body: some View {
+		Text("\(Int(percent.rounded()))% ctx")
+			.font(.system(size: ComposerMetrics.labelSize, design: .rounded))
+			.monospacedDigit()
+			.foregroundStyle(tint)
+			.help("Contexto usado — o `omp` compacta sozinho perto do limite")
+			.accessibilityLabel("Contexto em \(Int(percent.rounded())) por cento")
+	}
+
+	private var tint: Color {
+		percent >= ComposerFooter.contextCriticalPercent ? .orange : .secondary
 	}
 }
 

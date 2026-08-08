@@ -79,6 +79,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 	private func showPanel(_ panel: FloatingPanel) {
 		panel.present()
+		// Whatever finished while the panel was closed is now on screen.
+		statusItem.acknowledgeCompletion()
 		// On the first show the text view claims focus from
 		// `viewDidMoveToWindow`; on every later show the view already has its
 		// window, so focus is restored explicitly here.
@@ -181,7 +183,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 		} onChange: {
 			Task { @MainActor [weak self] in
 				guard let self else { return }
-				self.statusItem.update(state: self.coordinator.runState)
+				self.statusItem.update(
+					state: self.coordinator.runState,
+					panelIsVisible: self.panel?.isVisible == true
+				)
 				self.scheduleRunStateObservation()
 			}
 		}

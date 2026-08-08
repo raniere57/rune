@@ -187,6 +187,8 @@ da runa Algiz (ᛉ).
 | Alternar Plan / Build | `⇥` com o campo sem lista aberta, ou clique no chip |
 | Trocar de diretório | clique no chip da pasta, ou `/cd` sem argumento |
 | Retomar uma conversa | clique no chip **Conversas** |
+| Copiar um bloco de código | passe o mouse sobre ele e clique no botão |
+| Repetir a última mensagem | botão **tentar de novo** no card de falha |
 
 ### Comandos internos
 
@@ -562,7 +564,7 @@ constante.
 swift test
 ```
 
-**165 testes, 22 suítes.** Nenhum gasta token.
+**174 testes, 25 suítes.** Nenhum gasta token.
 
 | Suíte | Cobre |
 |---|---|
@@ -584,6 +586,8 @@ swift test
 | Run state recovery | abort ocioso, abort que falha, `⌘K` e `/cd` no meio do turno, texto pendente descartado, saída deliberada |
 | Streaming coalescing | deltas viram um turno só, flush no fim do turno, ordem preservada contra tool call |
 | Tool argument clamping | corte na construção, recursão em árvore, string curta intacta |
+| Retry after a failure | nada a repetir no início, última mensagem, anexo bloqueia, ocupado bloqueia, reenvio |
+| Menu bar completion mark | marca ao terminar com painel fechado, silêncio com painel aberto, run novo limpa |
 | Context across an idle shutdown | o segundo prompt retoma a mesma sessão |
 | OMP integration | contra o binário real |
 
@@ -721,7 +725,7 @@ pagar nada e sem nenhuma caixa-preta no meio. Open source é lindo mesmo.
 ```bash
 git clone https://github.com/raniere57/rune.git && cd rune
 brew install can1357/tap/omp
-swift test          # 165 testes, nenhum gasta token
+swift test          # 174 testes, nenhum gasta token
 ./scripts/build-app.sh release && open build/Rune.app
 ```
 

@@ -8,6 +8,7 @@ import SwiftUI
 struct ToolCallView: View {
 	let activity: ToolActivity
 	@State private var isExpanded = false
+	@State private var isHovering = false
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 6) {
@@ -36,9 +37,20 @@ struct ToolCallView: View {
 
 					Spacer(minLength: 0)
 				}
+				// Padded and inset so the hover highlight reads as a row rather
+				// than a rectangle glued to the text.
+				.padding(.horizontal, 6)
+				.padding(.vertical, 3)
+				.background(
+					PanelStyle.rowHighlight(hovering: isHovering),
+					in: RoundedRectangle(cornerRadius: 5, style: .continuous)
+				)
+				.padding(.horizontal, -6)
 				.contentShape(Rectangle())
 			}
 			.buttonStyle(.plain)
+			.onHover { isHovering = $0 }
+			.animation(.easeOut(duration: 0.1), value: isHovering)
 
 			if isExpanded {
 				VStack(alignment: .leading, spacing: 8) {

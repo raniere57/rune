@@ -220,6 +220,29 @@ public final class AgentCoordinator {
 		}
 	}
 
+	/// The message a retry would re-send, or nil when there is nothing to retry.
+	///
+	/// Nil when a turn is running, when nothing has been sent, or when the last
+	/// message carried attachments: a `UserTurn` only keeps a summary of those,
+	/// so re-sending would silently drop the image or file and produce a
+	/// different request from the one that failed.
+	public var retryableMessage: String? {
+		guard !runState.isBusy else { return nil }
+		for item in items.reversed() {
+			guard case .user(let turn) = item else { continue }
+			guard turn.attachments.isEmpty, !turn.text.isEmpty else { return nil }
+			return turn.text
+		}
+		return nil
+	}
+
+	/// Re-sends the last user message after a terminal failure. The alternative
+	/// is retyping what was just typed.
+	public func retryLastMessage() async {
+		guard let text = retryableMessage else { return }
+		await send(prompt: text, attachments: [])
+	}
+
 	/// Text of the last assistant answer, for `Cmd+C` with no selection.
 	public var lastAssistantText: String? {
 		items.reversed().compactMap { item -> String? in

@@ -8,6 +8,45 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
 
 ## [Não publicado]
 
+## [0.10.0] — 2026-08-08
+
+A segunda leva da auditoria: a interface. Tudo aqui custa zero em RAM ociosa —
+são estados booleanos por bloco visível e valores que o app já rastreava.
+
+### Adicionado
+
+- **Botão de copiar nos blocos de código**, revelado no hover. Era a saída mais
+  copiada de um agente de código e não tinha nenhuma affordance: só dava para
+  selecionar à mão, dentro de um `ScrollView` horizontal onde o arrasto disputa o
+  eixo com a rolagem. Vale também para a saída de comandos. O símbolo vira um
+  ✓ por 1,5 s.
+
+- **Marca de concluído no ícone da barra.** O fluxo central do app é disparar uma
+  tarefa e fechar o painel — e até agora "terminou" e "nunca rodou" eram
+  visualmente idênticos, então a única forma de saber era reabrir. Agora o ícone
+  vira um `checkmark.circle` quando um turno termina com o painel fechado, e
+  limpa ao reabrir.
+
+- **"Tentar de novo" na falha terminal.** Só aparece na falha que encerra a
+  conversa, e só quando a mensagem pode ser reproduzida: um turno com anexo não
+  oferece, porque o `UserTurn` guarda apenas um resumo do arquivo e o reenvio
+  seria uma requisição diferente da que falhou.
+
+- **Indicador de contexto no rodapé.** O `contextPercent` já era rastreado a cada
+  frame RPC e só aparecia com `/context`. Agora surge como `72% ctx` a partir de
+  60%, laranja acima de 85%. Abaixo do limiar não renderiza nada.
+
+### Alterado
+
+- **A rolagem automática respeita quem está lendo.** Cada token puxava a tela
+  para o fim, o que tornava impossível reler algo durante uma resposta longa.
+  Agora o texto em streaming só arrasta a view quando ela já está no fim (com 40
+  pt de folga); um item novo sempre arrasta, porque é algo que o usuário pediu ou
+  precisa ver.
+
+- Linhas de tool call ganharam estado de hover, e a prosa do assistente ganhou
+  entrelinha — 720 pt é uma linha longa para 13 pt de texto.
+
 ## [0.9.0] — 2026-08-08
 
 Uma auditoria de seis frentes sobre o código — cada bug apontado passou por uma
@@ -457,6 +496,7 @@ Primeira versão. GUI nativa mínima para o `omp`, na barra de menus.
 - Assinatura ad-hoc — o Gatekeeper bloqueia na primeira abertura.
 
 [Não publicado]: https://github.com/raniere57/rune/compare/v0.8.0...HEAD
+[0.10.0]: https://github.com/raniere57/rune/releases/tag/v0.10.0
 [0.9.0]: https://github.com/raniere57/rune/releases/tag/v0.9.0
 [0.8.1]: https://github.com/raniere57/rune/releases/tag/v0.8.1
 [0.8.0]: https://github.com/raniere57/rune/releases/tag/v0.8.0

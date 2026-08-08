@@ -35,15 +35,35 @@ public final class StatusItemController {
 		button.sendAction(on: [.leftMouseUp, .rightMouseUp])
 	}
 
+	/// Set when a run finished while the panel was closed, so the icon can say
+	/// "there is something for you" instead of silently returning to idle.
+	private var showsCompletion = false
+
+	/// Exposed for tests and `--diagnose`; the mark itself is the icon.
+	public var showsCompletionMark: Bool { showsCompletion }
+
 	/// Reflects run state in the icon so the user can tell at a glance whether
 	/// the agent is working, without opening the panel. Idle shows the app's
 	/// own mark; active states borrow SF Symbols, which read faster than a
 	/// badge on a 16pt glyph.
-	public func update(state: AgentRunState) {
+	///
+	/// `panelIsVisible` decides whether finishing is worth marking: the whole
+	/// point of the app is to fire a task and close the panel, and until now
+	/// "done" and "never ran" looked identical, so the only way to find out was
+	/// to reopen it.
+	public func update(state: AgentRunState, panelIsVisible: Bool = true) {
 		guard let button = statusItem.button else { return }
+
+		if state.isBusy {
+			showsCompletion = false
+		} else if case .ready = state, !panelIsVisible, wasBusy {
+			showsCompletion = true
+		}
+		wasBusy = state.isBusy
+
 		let symbol: String?
 		switch state {
-		case .stopped, .ready: symbol = nil
+		case .stopped, .ready: symbol = showsCompletion ? "checkmark.circle" : nil
 		case .starting: symbol = "circle.dotted"
 		case .thinking, .compacting: symbol = "sparkles"
 		case .usingTool: symbol = "wrench.and.screwdriver"
@@ -58,7 +78,18 @@ public final class StatusItemController {
 		} else {
 			button.image = MenuBarIcon.shared
 		}
-		button.toolTip = "\(AppConfiguration.versionedName) — \(state.label)"
+		let suffix = showsCompletion ? " — concluído" : ""
+		button.toolTip = "\(AppConfiguration.versionedName) — \(state.label)\(suffix)"
+	}
+
+	private var wasBusy = false
+
+	/// Clears the completion mark. Called when the panel is shown: the user has
+	/// now seen whatever finished.
+	public func acknowledgeCompletion() {
+		guard showsCompletion else { return }
+		showsCompletion = false
+		statusItem.button?.image = MenuBarIcon.shared
 	}
 
 	@objc private func handleClick() {
