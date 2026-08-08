@@ -136,6 +136,30 @@ Para remover:
 security delete-generic-password -a opencode-api-key -s dev.raniere.Rune
 ```
 
+### Se o macOS pedir a senha do Keychain
+
+O app é assinado **ad-hoc** — não há certificado de desenvolvedor. Uma ACL do
+Keychain fixa a identidade de código exata que foi autorizada, e a identidade de
+um binário ad-hoc muda a cada build. Consequências práticas:
+
+- **Clique em "Permitir Sempre", não em "Permitir".** "Permitir" autoriza uma
+  única leitura; a próxima volta a perguntar.
+- **Depois de atualizar o app, ele pergunta uma vez de novo.** Assinatura nova,
+  identidade nova, ACL não confere. "Permitir Sempre" resolve até a versão
+  seguinte.
+- **Prefira `/key` dentro do app ao script.** Um item criado pelo app confia no
+  app; o script usa `security -T ""`, que não confia em nada e portanto pergunta
+  sempre.
+
+O app lê a chave **uma vez por execução** e a mantém em memória, então o prompt
+não se repete a cada conversa mesmo quando o `omp` é reiniciado. Se ele voltar a
+perguntar com frequência, o item provavelmente foi criado pelo script — apague e
+regrave com `/key`:
+
+```bash
+security delete-generic-password -a opencode-api-key -s dev.raniere.Rune
+```
+
 ### 3. Instalar o app
 
 Baixe o `.dmg` mais recente em
@@ -566,7 +590,7 @@ constante.
 swift test
 ```
 
-**188 testes, 28 suítes.** Nenhum gasta token.
+**190 testes, 29 suítes.** Nenhum gasta token.
 
 | Suíte | Cobre |
 |---|---|
@@ -593,6 +617,7 @@ swift test
 | Free model fallback | maior contexto grátis, nunca um pago, custo de saída conta, empate determinístico |
 | Boot with the model gone | boot sobrevive e avisa, sem grátis ainda falha, boot normal intacto |
 | Dropped items | pasta vs arquivo, PNG e JPEG intactos, bytes ilegíveis recusados |
+| API key caching | uma leitura por execução mesmo com reinício do `omp`, ausência não é cacheada |
 | Context across an idle shutdown | o segundo prompt retoma a mesma sessão |
 | OMP integration | contra o binário real |
 
@@ -747,7 +772,7 @@ pagar nada e sem nenhuma caixa-preta no meio. Open source é lindo mesmo.
 ```bash
 git clone https://github.com/raniere57/rune.git && cd rune
 brew install can1357/tap/omp
-swift test          # 188 testes, nenhum gasta token
+swift test          # 190 testes, nenhum gasta token
 ./scripts/build-app.sh release && open build/Rune.app
 ```
 

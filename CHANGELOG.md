@@ -8,6 +8,27 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
 
 ## [Não publicado]
 
+## [0.11.1] — 2026-08-08
+
+### Corrigido
+
+- **O macOS pedia a senha do Keychain a cada conversa nova.**
+
+  Duas causas somadas. O app lia a chave do Keychain a **cada boot do `omp`**, e
+  o reaper de ociosidade encerra o `omp` depois de dez minutos — então cada
+  conversa depois de uma pausa era uma leitura nova, e cada leitura um prompt. A
+  chave agora é lida **uma vez por execução do app** e mantida em memória (`/key`
+  atualiza as duas coisas juntas). Um valor ausente não é cacheado: não há item
+  para perguntar, e assim uma chave gravada pelo terminal é notada sem relançar.
+
+  A segunda causa não tem correção no código: o app é assinado **ad-hoc**, e uma
+  ACL do Keychain fixa a identidade de código exata autorizada. A identidade de
+  um binário ad-hoc muda a cada build, então toda atualização volta a perguntar
+  uma vez. O README agora explica isso, e explica que **"Permitir Sempre"** é o
+  botão certo — "Permitir" autoriza uma leitura só. `/key` dentro do app também é
+  melhor que `set-opencode-key.sh`, porque um item criado pelo app confia no app;
+  o script usa `-T ""`, que não confia em ninguém.
+
 ### Documentação
 
 - **A RAM ociosa está medida errada no README desde sempre — corrigida para
@@ -550,6 +571,7 @@ Primeira versão. GUI nativa mínima para o `omp`, na barra de menus.
 - Assinatura ad-hoc — o Gatekeeper bloqueia na primeira abertura.
 
 [Não publicado]: https://github.com/raniere57/rune/compare/v0.8.0...HEAD
+[0.11.1]: https://github.com/raniere57/rune/releases/tag/v0.11.1
 [0.11.0]: https://github.com/raniere57/rune/releases/tag/v0.11.0
 [0.10.0]: https://github.com/raniere57/rune/releases/tag/v0.10.0
 [0.9.0]: https://github.com/raniere57/rune/releases/tag/v0.9.0

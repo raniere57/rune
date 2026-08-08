@@ -25,6 +25,11 @@ fi
 # `-U` updates in place when the item already exists; `-w` reads the secret
 # from the argument, so it is passed as a single exec argument rather than
 # through a shell pipeline that could be observed.
+#
+# `-T ""` trusts no application, so every read asks for the login password.
+# That is deliberate here, but it is also why `/key` inside the app is the
+# better path: an item created by the app itself trusts the app, and macOS stops
+# asking. Prefer `/key sk-…` unless you specifically want the prompt.
 security add-generic-password \
 	-a "${ACCOUNT}" \
 	-s "${SERVICE}" \

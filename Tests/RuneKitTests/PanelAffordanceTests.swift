@@ -145,3 +145,77 @@ struct ContextGaugeTests {
 		#expect(ComposerFooter.contextCriticalPercent < 100)
 	}
 }
+
+@MainActor
+@Suite("API key caching")
+struct APIKeyCacheTests {
+	/// Counts reads so the number of keychain hits is observable — each one is a
+	/// password prompt on an ad-hoc signed build.
+	private final class CountingProvider: @unchecked Sendable {
+		private let lock = NSLock()
+		private var count = 0
+		var value: String?
+
+		init(value: String?) { self.value = value }
+
+		var reads: Int {
+			lock.lock()
+			defer { lock.unlock() }
+			return count
+		}
+
+		func read() -> String? {
+			lock.lock()
+			count += 1
+			let current = value
+			lock.unlock()
+			return current
+		}
+	}
+
+	private func makeCoordinator(
+		transport: FakeOmpTransport,
+		provider: CountingProvider
+	) -> AgentCoordinator {
+		AgentCoordinator(
+			transport: transport,
+			defaults: UserDefaults(suiteName: "rune.key.\(UUID().uuidString)")!,
+			idleInterval: 3600,
+			apiKeyProvider: { provider.read() }
+		)
+	}
+
+	@Test("the key is read once, not once per omp boot")
+	func readOncePerLaunch() async throws {
+		let transport = FakeOmpTransport()
+		let provider = CountingProvider(value: "sk-test")
+		let coordinator = makeCoordinator(transport: transport, provider: provider)
+
+		try await coordinator.ensureRunning()
+		let afterFirstBoot = provider.reads
+
+		// A mode change restarts omp, which is the path that used to re-read —
+		// and with the idle reaper stopping omp after ten minutes, that meant a
+		// password prompt per conversation.
+		_ = coordinator.setMode(coordinator.mode == .build ? .plan : .build)
+		try await coordinator.ensureRunning()
+
+		#expect(afterFirstBoot == 1)
+		#expect(provider.reads == 1)
+	}
+
+	@Test("a missing key is re-checked, so one stored from the terminal is picked up")
+	func absentKeyIsNotCached() async throws {
+		let transport = FakeOmpTransport()
+		let provider = CountingProvider(value: nil)
+		let coordinator = makeCoordinator(transport: transport, provider: provider)
+
+		// No item exists, so the read cannot prompt — caching the nil would only
+		// force a relaunch after `set-opencode-key.sh`.
+		await #expect(throws: AgentError.self) { try await coordinator.ensureRunning() }
+		provider.value = "sk-later"
+		try await coordinator.ensureRunning()
+
+		#expect(coordinator.runState == .ready)
+	}
+}

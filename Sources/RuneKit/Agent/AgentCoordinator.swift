@@ -75,6 +75,9 @@ public final class AgentCoordinator {
 	/// Set while this app is the one stopping OMP, so the termination handler
 	/// does not report a deliberate restart as a crash.
 	private var expectingShutdown = false
+	/// The API key, held for the lifetime of the app after the first successful
+	/// read — see `apiKey()`.
+	private var cachedAPIKey: String?
 
 	/// Most recent transcripts on disk, for the conversation picker. Refreshed
 	/// on demand rather than watched: the list is only read when the menu opens.
@@ -218,6 +221,26 @@ public final class AgentCoordinator {
 		} catch {
 			append(.failure(FailureEntry(text: "Falha ao responder à solicitação.", detail: error.localizedDescription)))
 		}
+	}
+
+	/// The stored API key, read from the keychain at most once per app launch.
+	///
+	/// Reading is not free. The app is signed ad-hoc, so its code identity
+	/// changes on every build, and a keychain ACL pins the exact identity that
+	/// was trusted — which means the running build is never on the list and macOS
+	/// asks for the login password. Reading on every `omp` boot turned that into
+	/// a prompt per conversation, because the idle reaper stops `omp` after ten
+	/// minutes and the next message starts it again.
+	///
+	/// Caching is also correct, not just cheap: `/key` is the only writer inside
+	/// the app and it refreshes this, so the value cannot change behind its back.
+	/// A nil is deliberately not cached — there is no item to prompt for, so the
+	/// re-read costs nothing and a key stored from the terminal is picked up
+	/// without relaunching.
+	private func apiKey() -> String? {
+		if let cachedAPIKey { return cachedAPIKey }
+		cachedAPIKey = apiKeyProvider()
+		return cachedAPIKey
 	}
 
 	/// The message a retry would re-send, or nil when there is nothing to retry.
@@ -474,7 +497,7 @@ public final class AgentCoordinator {
 		let key = raw.trimmingCharacters(in: .whitespacesAndNewlines)
 
 		guard !key.isEmpty else {
-			let present = apiKeyProvider()?.isEmpty == false
+			let present = apiKey()?.isEmpty == false
 			append(.notice(NoticeEntry(
 				level: present ? .info : .warning,
 				text: present
@@ -496,6 +519,9 @@ public final class AgentCoordinator {
 			return
 		}
 
+		// Kept in step with the keychain so the next boot does not have to read it
+		// back — which, ad-hoc signed, would be another password prompt.
+		cachedAPIKey = key
 		sessionLog.info("opencode api key updated")
 		append(.notice(NoticeEntry(level: .info, text: "Chave gravada no Keychain (\(Self.masked(key))).")))
 
@@ -525,7 +551,7 @@ public final class AgentCoordinator {
 			"Estado: \(runState.label)",
 			"Workspace: \(workspace.displayName)",
 			"Modelo: \(activeModelDescription ?? AppConfiguration.primaryModelSelector) (não iniciado)",
-			"Chave: \(apiKeyProvider()?.isEmpty == false ? "configurada" : "ausente — use `/key sk-…`")",
+			"Chave: \(apiKey()?.isEmpty == false ? "configurada" : "ausente — use `/key sk-…`")",
 		]
 		if transport.isRunning {
 			await refreshState()
@@ -656,7 +682,7 @@ public final class AgentCoordinator {
 	}
 
 	private func boot() async throws {
-		guard let apiKey = apiKeyProvider(), !apiKey.isEmpty else {
+		guard let apiKey = apiKey(), !apiKey.isEmpty else {
 			throw AgentError.missingAPIKey
 		}
 
