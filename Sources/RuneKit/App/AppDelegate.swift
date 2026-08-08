@@ -196,15 +196,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 		}
 	}
 
-	/// Was the previous state one where work was in flight. Needed because the
-	/// interesting event is the *transition* out of busy, not the state itself.
-	private var wasWorking = false
+	/// The state observed before the current one. The interesting event is the
+	/// *transition* out of busy, not the state itself — and the state left
+	/// behind is often the only thing that says how the turn ended, since an
+	/// abort and a clean finish both land on `.ready`.
+	private var previousState: AgentRunState?
 
 	private func announceIfFinished(state: AgentRunState, panelIsVisible: Bool) {
-		defer { wasWorking = state.isBusy }
-		guard wasWorking, !state.isBusy, !panelIsVisible else { return }
+		let previous = previousState
+		defer { previousState = state }
+		guard previous?.isBusy == true, !state.isBusy, !panelIsVisible else { return }
 		CompletionNotifier.notifyFinished(
 			state: state,
+			previous: previous,
 			workspaceName: coordinator.workspace.url.lastPathComponent
 		)
 	}

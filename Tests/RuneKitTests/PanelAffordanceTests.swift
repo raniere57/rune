@@ -221,7 +221,6 @@ struct APIKeyCacheTests {
 	}
 }
 
-@MainActor
 @Suite("Auto-scroll pinning")
 struct AutoScrollPinningTests {
 	@Test("an anchor that never reported is not treated as being at the bottom")
@@ -247,13 +246,27 @@ struct CompletionWordingTests {
 	func stoppedIsNotSuccess() {
 		// `handleTermination` sets `.stopped`, not `.failed`, so the default arm
 		// reported a dead child as a finished job.
-		let body = CompletionNotifier.body(for: .stopped, workspaceName: "rune")
+		let body = CompletionNotifier.body(for: .stopped, previous: .thinking, workspaceName: "rune")
+		#expect(!body.contains("concluída"))
+	}
+
+	@Test("an aborted turn is not announced as a completed task")
+	func abortIsNotSuccess() {
+		// Abort resolves to an ordinary `.ready`, so the state reached says
+		// nothing — only the state left behind tells it apart from a real finish.
+		let body = CompletionNotifier.body(for: .ready, previous: .aborting, workspaceName: "rune")
 		#expect(!body.contains("concluída"))
 	}
 
 	@Test("a real finish and a failure keep their own wording")
 	func otherStatesUnchanged() {
-		#expect(CompletionNotifier.body(for: .ready, workspaceName: "rune").contains("concluída"))
-		#expect(CompletionNotifier.body(for: .failed("boom"), workspaceName: "rune").contains("boom"))
+		#expect(
+			CompletionNotifier.body(for: .ready, previous: .thinking, workspaceName: "rune")
+				.contains("concluída")
+		)
+		#expect(
+			CompletionNotifier.body(for: .failed("boom"), previous: .thinking, workspaceName: "rune")
+				.contains("boom")
+		)
 	}
 }

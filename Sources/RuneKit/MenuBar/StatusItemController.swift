@@ -56,6 +56,9 @@ public final class StatusItemController {
 
 		if state.isBusy {
 			showsCompletion = false
+		// `.ready` only, deliberately: a crash lands on `.stopped` and a failure
+		// on `.failed`, and neither deserves a checkmark. The notification is
+		// looser on purpose — it announces those too, with its own wording.
 		} else if case .ready = state, !panelIsVisible, wasBusy {
 			showsCompletion = true
 		}

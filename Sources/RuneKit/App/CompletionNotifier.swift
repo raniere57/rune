@@ -42,21 +42,40 @@ public enum CompletionNotifier {
 
 	/// The banner text for a run that just stopped being busy.
 	///
-	/// `.stopped` needs its own arm: `handleTermination` uses it when the child
-	/// dies mid-turn, so the generic "concluída" reported a crash as a success.
-	nonisolated static func body(for state: AgentRunState, workspaceName: String) -> String {
+	/// Both the state reached and the one left behind matter. `.stopped` is what
+	/// `handleTermination` sets when the child dies mid-turn, so on its own the
+	/// generic "concluída" reported a crash as a success. And an abort resolves
+	/// to a perfectly ordinary `.ready` — only `.aborting` in the previous slot
+	/// tells it apart from a turn that actually finished.
+	///
+	/// The switch is exhaustive on purpose: a new run state should not silently
+	/// inherit the success wording.
+	nonisolated static func body(
+		for state: AgentRunState,
+		previous: AgentRunState?,
+		workspaceName: String
+	) -> String {
+		if case .aborting = previous { return "Interrompido em \(workspaceName)." }
 		switch state {
-		case .failed(let message): "Falhou em \(workspaceName): \(message)"
-		case .stopped: "Interrompido em \(workspaceName)."
-		default: "Tarefa concluída em \(workspaceName)."
+		case .failed(let message): return "Falhou em \(workspaceName): \(message)"
+		case .stopped: return "Interrompido em \(workspaceName)."
+		case .ready: return "Tarefa concluída em \(workspaceName)."
+		// Not reachable — the caller only announces transitions *out* of busy —
+		// but naming them keeps a future state from defaulting to "concluída".
+		case .starting, .thinking, .usingTool, .compacting, .aborting:
+			return "Tarefa concluída em \(workspaceName)."
 		}
 	}
 
-	public static func notifyFinished(state: AgentRunState, workspaceName: String) {
+	public static func notifyFinished(
+		state: AgentRunState,
+		previous: AgentRunState?,
+		workspaceName: String
+	) {
 		guard isAvailable else { return }
 		let content = UNMutableNotificationContent()
 		content.title = AppConfiguration.appName
-		content.body = body(for: state, workspaceName: workspaceName)
+		content.body = body(for: state, previous: previous, workspaceName: workspaceName)
 		content.sound = .default
 
 		// `trigger: nil` delivers immediately. The identifier is stable so a

@@ -8,6 +8,25 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
 
 ## [Não publicado]
 
+## [0.11.3] — 2026-08-08
+
+### Corrigido
+
+- **Abortar um turno com `⌘.` avisava "Tarefa concluída".**
+
+  A notificação decidia o texto pelo estado alcançado, mas um abort resolve
+  para um `.ready` idêntico ao de um turno que terminou de verdade — só o
+  estado deixado para trás distingue os dois. A transição agora carrega o
+  estado anterior, e `.aborting` vira "Interrompido em X". Era a mesma raiz da
+  correção da 0.11.2, um nível acima: o arm de `.stopped` não tinha como cobrir
+  esse caso.
+
+### Interno
+
+- O `switch` que escolhe o texto da notificação passou a ser exaustivo. Um
+  estado novo no `AgentRunState` agora quebra a compilação em vez de herdar em
+  silêncio o texto de sucesso.
+
 ## [0.11.2] — 2026-08-08
 
 ### Corrigido
