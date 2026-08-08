@@ -69,7 +69,10 @@ public struct ToolActivity: Identifiable, Sendable, Equatable {
 	) {
 		self.id = id
 		self.name = name
-		self.arguments = arguments
+		// Clamped at construction rather than at render time: this value is
+		// retained for the whole session, and `write`/`edit` arguments carry
+		// entire file bodies.
+		self.arguments = arguments.clampingStrings(to: AppConfiguration.maxRenderedToolResultCharacters)
 		self.status = status
 		self.resultText = resultText
 		self.diff = diff

@@ -143,6 +143,13 @@ public enum AppConfiguration {
 	public static let maxRenderedDiffLines = 200
 	public static let maxRenderedToolResultCharacters = 4000
 
+	/// How long streamed text is buffered before it reaches the transcript.
+	///
+	/// Roughly one flush per displayed frame. Anything shorter buys no visible
+	/// smoothness and costs a full re-parse of the answer; anything longer makes
+	/// the text arrive in visible clumps.
+	public static let streamFlushInterval: Duration = .milliseconds(80)
+
 	// MARK: - UserDefaults keys (non-sensitive only)
 
 	public enum DefaultsKey {
@@ -175,5 +182,18 @@ public struct GlobalShortcut: Sendable, Equatable {
 		self.optionKey = optionKey
 		self.shiftKey = shiftKey
 		self.commandKey = commandKey
+	}
+}
+
+extension GlobalShortcut: CustomStringConvertible {
+	/// Menu-style rendering, e.g. `⌃⌥Space`. Only the keys this app actually
+	/// binds are named; anything else falls back to its code.
+	public var description: String {
+		var text = ""
+		if controlKey { text += "⌃" }
+		if optionKey { text += "⌥" }
+		if shiftKey { text += "⇧" }
+		if commandKey { text += "⌘" }
+		return text + (keyCode == 49 ? "Space" : "#\(keyCode)")
 	}
 }

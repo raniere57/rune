@@ -16,6 +16,31 @@ public enum JSONValue: Sendable, Equatable {
 	case object([String: JSONValue])
 }
 
+// MARK: - Clamping
+
+extension JSONValue {
+	/// Truncates every string leaf to `limit` characters.
+	///
+	/// Tool arguments are kept for the lifetime of a session so the row can be
+	/// rendered, and `write`/`edit` carry whole file bodies. Nothing on screen
+	/// ever shows more than the render limit, so retaining the rest is pure
+	/// footprint — a Build run touching twenty 50 KB files held megabytes for
+	/// text no one would read.
+	public func clampingStrings(to limit: Int) -> JSONValue {
+		switch self {
+		case .string(let value):
+			guard value.count > limit else { return self }
+			return .string(String(value.prefix(limit)) + "…")
+		case .array(let items):
+			return .array(items.map { $0.clampingStrings(to: limit) })
+		case .object(let fields):
+			return .object(fields.mapValues { $0.clampingStrings(to: limit) })
+		case .null, .bool, .number:
+			return self
+		}
+	}
+}
+
 // MARK: - Accessors
 
 extension JSONValue {

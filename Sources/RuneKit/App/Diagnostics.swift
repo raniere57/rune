@@ -56,6 +56,13 @@ public enum Diagnostics {
 			height: AppConfiguration.composerMinHeight + 34
 		))
 		panel.contentViewController = hosting
+		// `RUNE_DIAGNOSE_APPEARANCE=light|dark` overrides the system setting, so
+		// both themes can be rendered from one machine. The panel chrome is
+		// painted on an adaptive material, and light mode is the one that used to
+		// break silently.
+		if let name = ProcessInfo.processInfo.environment["RUNE_DIAGNOSE_APPEARANCE"] {
+			panel.appearance = NSAppearance(named: name == "light" ? .aqua : .darkAqua)
+		}
 		panel.present()
 
 		// Runs the production boot path, then replays a scripted turn through

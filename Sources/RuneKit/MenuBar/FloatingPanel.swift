@@ -55,16 +55,26 @@ public final class FloatingPanel: NSPanel {
 		_ = onKeyEquivalent?(.escape)
 	}
 
+	/// Modifiers that distinguish one shortcut from another. Caps lock and the
+	/// function key are excluded so they cannot break an exact match.
+	private static let significantModifiers: NSEvent.ModifierFlags = [
+		.command, .shift, .option, .control,
+	]
+
 	public override func performKeyEquivalent(with event: NSEvent) -> Bool {
-		guard event.modifierFlags.contains(.command) else {
-			return super.performKeyEquivalent(with: event)
-		}
+		// Exact modifiers, not `contains(.command)`: matching loosely meant ⌘⌥C
+		// or ⌘⌃K were swallowed here instead of reaching whoever owns them.
+		let modifiers = event.modifierFlags.intersection(Self.significantModifiers)
 		let characters = event.charactersIgnoringModifiers?.lowercased()
 		let shortcut: PanelShortcut?
-		switch characters {
-		case "k": shortcut = .newSession
-		case ".": shortcut = .abort
-		case "c": shortcut = .copy
+		switch (modifiers, characters) {
+		case (.command, "k"): shortcut = .newSession
+		case (.command, "."): shortcut = .abort
+		// ⌘⇧C, not ⌘C. ⌘C has to keep meaning "copy the selection": the panel
+		// cannot see a SwiftUI text selection (only an `NSTextView` one), so
+		// hijacking it put the whole last answer on the clipboard whenever the
+		// user had selected a fragment of the transcript.
+		case ([.command, .shift], "c"): shortcut = .copyLastAnswer
 		default: shortcut = nil
 		}
 		if let shortcut, onKeyEquivalent?(shortcut) == true { return true }
@@ -127,9 +137,9 @@ public final class FloatingPanel: NSPanel {
 	}
 }
 
-public enum PanelShortcut: Sendable {
+public enum PanelShortcut: Sendable, Equatable {
 	case escape
 	case newSession
 	case abort
-	case copy
+	case copyLastAnswer
 }

@@ -8,6 +8,81 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
 
 ## [Não publicado]
 
+## [0.9.0] — 2026-08-08
+
+Uma auditoria de seis frentes sobre o código — cada bug apontado passou por uma
+verificação adversarial contra o próprio código antes de virar correção. O que
+sobreviveu está aqui.
+
+### Corrigido
+
+- **`⌘.` ou `/abort` sem nada rodando travava o app em "Abortando…" para sempre.**
+
+  O OMP não emite `agent_end` para um turno que já terminou, e nada mais limpava
+  o estado. Como todas as saídas (o reaper de ociosidade, a troca de modo, a
+  troca de sessão) se recusam a rodar enquanto o estado está ocupado, o app
+  ficava preso até o próximo prompt. Agora abortar exige um turno em andamento, e
+  um abort que falha restaura o estado que interrompeu.
+
+- **`⌘C` roubava a seleção do histórico.**
+
+  O painel só enxerga seleção de `NSTextView`; a do SwiftUI (`.textSelection`) é
+  invisível para ele. Quem selecionava um trecho da conversa e apertava `⌘C`
+  recebia a resposta inteira na área de transferência. `⌘C` voltou a ser do
+  sistema; copiar a última resposta agora é **`⌘⇧C`**. Os modificadores também
+  passaram a ser exatos — `⌘⌥K` não é mais engolido pelo painel.
+
+- **`⌘K` com histórico fazia o painel sumir atrás do diálogo de confirmação.**
+
+  O `NSAlert` tira o foco do painel, que é exatamente o gatilho do auto-fechar.
+  O usuário confirmava um alerta de uma janela que tinha acabado de desaparecer.
+
+- **Modo claro.** O painel é pintado sobre `.ultraThinMaterial`, que é
+  adaptativo — mas dezesseis cores de chrome eram brancos e pretos fixos. No modo
+  claro os chips perdiam o contorno, o popup de comandos ficava escuro sobre
+  fundo claro e os blocos de código viravam lajes escuras com texto escuro. Todas
+  passaram a derivar de `Color.primary`. `--diagnose` agora aceita
+  `RUNE_DIAGNOSE_APPEARANCE=light|dark` para renderizar os dois temas.
+
+- **Corrida no restart rápido.** `shutdown()` esperava o processo morrer, mas
+  lançar um novo exige o slot liberado — e o macOS marca o processo como morto
+  até ~17 ms antes de entregar o handler que libera o slot (medido nesta
+  máquina). Uma troca de modo reinicia dentro dessa janela e falhava com
+  `alreadyRunning`. Some um token de geração nos pipes, para que bytes atrasados
+  do processo anterior não sejam costurados no stream do novo.
+
+- **`/new` e `/cd` no meio de um turno** repovoavam o histórico recém-limpo com
+  os deltas ainda em voo, e um encerramento deliberado era reportado como queda
+  do OMP. Os dois agora abortam antes, e a saída limpa deixou de virar erro.
+
+- **`Shift + Enter` corrompia entrada por IME** (chinês, japonês, coreano): a
+  interceptação ignorava o texto em composição, e o Return que confirmava o
+  candidato virava quebra de linha no meio dele.
+
+- **`⌃⌥Space` pode ser roubado pelo macOS** (troca de fonte de entrada, quando há
+  mais de um teclado ativo). `RegisterEventHotKey` retorna sucesso mesmo assim,
+  então a falha era silenciosa. Agora o app detecta e avisa no log e no
+  `/status`.
+
+### Performance
+
+- **Texto streamado deixou de ser O(n²).** Cada delta mutava `items`, e cada
+  mutação custava duas passadas pela resposta inteira: o copy-on-write duplicava
+  a string acumulada e a view reparseava tudo como markdown. Uma resposta de
+  100 KB copiava ~100 MB de bytes na main actor. Os deltas agora são acumulados e
+  gravados uma vez por quadro (~80 ms), e a gravação tira o item do array antes
+  de concatenar, para que o `+=` aconteça no lugar.
+
+- **Argumentos de ferramenta deixaram de crescer sem teto.** `write`/`edit`
+  carregam o corpo inteiro do arquivo, retido pela sessão toda enquanto a tela
+  nunca mostra mais que o limite de renderização. Um run tocando vinte arquivos
+  de 50 KB segurava megabytes de texto que ninguém leria. Agora são cortados na
+  construção.
+
+- **Escrita no stdin saiu da main thread.** O buffer de um pipe é ~64 KB, então
+  um prompt com imagem sempre excedia e bloqueava a interface até o OMP drenar —
+  justamente quando ele está ocupado numa ferramenta longa.
+
 ## [0.8.1] — 2026-08-06
 
 ### Corrigido
@@ -382,6 +457,7 @@ Primeira versão. GUI nativa mínima para o `omp`, na barra de menus.
 - Assinatura ad-hoc — o Gatekeeper bloqueia na primeira abertura.
 
 [Não publicado]: https://github.com/raniere57/rune/compare/v0.8.0...HEAD
+[0.9.0]: https://github.com/raniere57/rune/releases/tag/v0.9.0
 [0.8.1]: https://github.com/raniere57/rune/releases/tag/v0.8.1
 [0.8.0]: https://github.com/raniere57/rune/releases/tag/v0.8.0
 [0.7.2]: https://github.com/raniere57/rune/releases/tag/v0.7.2

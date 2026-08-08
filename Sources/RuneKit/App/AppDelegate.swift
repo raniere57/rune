@@ -144,19 +144,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 			Task { await coordinator.abort() }
 			return true
 
-		case .copy:
-			// Only hijack ⌘C when nothing is selected; otherwise the normal
-			// copy must win.
-			guard !hasSelection(), let text = coordinator.lastAssistantText else { return false }
+		case .copyLastAnswer:
+			guard let text = coordinator.lastAssistantText else { return false }
 			NSPasteboard.general.clearContents()
 			NSPasteboard.general.setString(text, forType: .string)
 			return true
 		}
-	}
-
-	private func hasSelection() -> Bool {
-		guard let responder = panel?.firstResponder as? NSTextView else { return false }
-		return responder.selectedRange().length > 0
 	}
 
 	private func confirmNewSession() -> Bool {
@@ -166,7 +159,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 		alert.alertStyle = .warning
 		alert.addButton(withTitle: "Nova conversa")
 		alert.addButton(withTitle: "Cancelar")
-		return alert.runModal() == .alertFirstButtonReturn
+		// The alert takes key status away from the panel, whose auto-dismiss is
+		// armed on exactly that — so without this the user was confirming a
+		// dialog for a window that had just vanished behind it.
+		guard let panel else { return alert.runModal() == .alertFirstButtonReturn }
+		return panel.keepingVisible { alert.runModal() == .alertFirstButtonReturn }
 	}
 
 	// MARK: - State mirroring

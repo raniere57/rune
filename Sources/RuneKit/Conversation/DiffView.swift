@@ -39,7 +39,7 @@ struct DiffView: View {
 				.padding(.vertical, 6)
 			}
 			.frame(maxHeight: 260)
-			.background(.black.opacity(0.15), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+			.background(PanelStyle.sunken, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
 
 			if diff.isTruncated {
 				Text("+\(diff.truncatedLineCount) linhas não exibidas")

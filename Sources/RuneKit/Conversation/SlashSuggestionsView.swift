@@ -35,10 +35,10 @@ struct SlashSuggestionsView: View {
 				}
 			}
 		}
-		.background(.black.opacity(0.22), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+		.background(.regularMaterial, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
 		.overlay(
 			RoundedRectangle(cornerRadius: 9, style: .continuous)
-				.strokeBorder(.white.opacity(0.08))
+				.strokeBorder(PanelStyle.faintHairline)
 		)
 		.overlay(alignment: .bottom) {
 			if suggestions.count > Self.maxVisibleRows {
@@ -47,7 +47,7 @@ struct SlashSuggestionsView: View {
 					.foregroundStyle(.tertiary)
 					.padding(.horizontal, 8)
 					.padding(.vertical, 2)
-					.background(.black.opacity(0.55), in: Capsule())
+					.background(PanelStyle.badge, in: Capsule())
 					.padding(.bottom, 4)
 			}
 		}
@@ -94,7 +94,7 @@ private struct SuggestionRow: View {
 						.foregroundStyle(.tertiary)
 						.padding(.horizontal, 5)
 						.padding(.vertical, 1)
-						.background(.white.opacity(0.08), in: Capsule())
+						.background(PanelStyle.badge, in: Capsule())
 				}
 			}
 			.padding(.horizontal, 10)
@@ -109,6 +109,6 @@ private struct SuggestionRow: View {
 
 	private var rowBackground: Color {
 		if isSelected { return .accentColor.opacity(0.28) }
-		return isHovering ? .white.opacity(0.06) : .clear
+		return PanelStyle.rowHighlight(hovering: isHovering)
 	}
 }

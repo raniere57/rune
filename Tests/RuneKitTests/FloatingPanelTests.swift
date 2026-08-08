@@ -51,6 +51,60 @@ struct FloatingPanelTests {
 		#expect(makePanel().keepingVisible { 42 } == 42)
 	}
 
+	// MARK: - Key equivalents
+
+	private func keyEvent(_ character: String, _ modifiers: NSEvent.ModifierFlags) -> NSEvent {
+		NSEvent.keyEvent(
+			with: .keyDown,
+			location: .zero,
+			modifierFlags: modifiers,
+			timestamp: 0,
+			windowNumber: 0,
+			context: nil,
+			characters: character,
+			charactersIgnoringModifiers: character,
+			isARepeat: false,
+			keyCode: 8
+		)!
+	}
+
+	/// Returns the shortcut the panel resolved, or nil when it claimed nothing.
+	private func resolve(_ character: String, _ modifiers: NSEvent.ModifierFlags) -> PanelShortcut? {
+		let panel = makePanel()
+		var seen: PanelShortcut?
+		panel.onKeyEquivalent = { shortcut in
+			seen = shortcut
+			return true
+		}
+		_ = panel.performKeyEquivalent(with: keyEvent(character, modifiers))
+		return seen
+	}
+
+	@Test("⌘C is left to the system, so a transcript selection still copies itself")
+	func plainCommandCIsNotHijacked() {
+		// The panel can only see an `NSTextView` selection; SwiftUI's own
+		// `.textSelection` is invisible to it. Claiming ⌘C therefore replaced a
+		// selected fragment with the whole last answer.
+		#expect(resolve("c", .command) == nil)
+	}
+
+	@Test("⌘⇧C copies the last answer")
+	func shiftCommandCCopiesLastAnswer() {
+		#expect(resolve("c", [.command, .shift]) == .copyLastAnswer)
+	}
+
+	@Test("extra modifiers do not match — ⌘⌥K belongs to whoever else wants it")
+	func modifiersMustMatchExactly() {
+		#expect(resolve("k", .command) == .newSession)
+		#expect(resolve("k", [.command, .option]) == nil)
+		#expect(resolve("k", [.command, .control]) == nil)
+	}
+
+	@Test("caps lock does not break an otherwise exact match")
+	func capsLockIsIgnored() {
+		#expect(resolve("k", [.command, .capsLock]) == .newSession)
+	}
+
 	@Test("positioning lands in the upper third of a screen, horizontally centred")
 	func positioning() throws {
 		let screen = try #require(NSScreen.main)

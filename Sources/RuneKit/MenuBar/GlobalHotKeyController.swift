@@ -84,7 +84,38 @@ public final class GlobalHotKeyController {
 			unregister()
 			return false
 		}
+		if Self.mayBeShadowedBySystem(shortcut) {
+			logger.warning("""
+			\(shortcut.description, privacy: .public) may be taken by the system shortcut for \
+			switching input sources; the menu bar icon still opens the panel
+			""")
+		}
 		return true
+	}
+
+	/// Whether the system is likely to eat this combination before the app sees
+	/// it.
+	///
+	/// `RegisterEventHotKey` returns `noErr` even when a system symbolic hotkey
+	/// owns the same keys — the registration succeeds and simply never fires, so
+	/// there is no error to report. The one collision that matters in practice is
+	/// ⌃⌥Space and ⌃Space, which macOS assigns to input-source switching; those
+	/// only intercept keystrokes when more than one keyboard source is enabled.
+	static func mayBeShadowedBySystem(_ shortcut: GlobalShortcut) -> Bool {
+		guard shortcut.keyCode == 49, shortcut.controlKey, !shortcut.commandKey else { return false }
+		return enabledKeyboardInputSourceCount() > 1
+	}
+
+	private static func enabledKeyboardInputSourceCount() -> Int {
+		let filter = [kTISPropertyInputSourceCategory: kTISCategoryKeyboardInputSource] as CFDictionary
+		guard let sources = TISCreateInputSourceList(filter, false)?.takeRetainedValue()
+			as? [TISInputSource]
+		else { return 0 }
+		return sources.count { source in
+			guard let pointer = TISGetInputSourceProperty(source, kTISPropertyInputSourceIsSelectCapable)
+			else { return false }
+			return CFBooleanGetValue(Unmanaged<CFBoolean>.fromOpaque(pointer).takeUnretainedValue())
+		}
 	}
 
 	public func unregister() {

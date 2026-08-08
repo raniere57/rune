@@ -75,10 +75,10 @@ struct CodeBlockView: View {
 			}
 		}
 		.frame(maxWidth: .infinity, alignment: .leading)
-		.background(.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+		.background(PanelStyle.sunken, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 		.overlay(
 			RoundedRectangle(cornerRadius: 8, style: .continuous)
-				.strokeBorder(.white.opacity(0.06))
+				.strokeBorder(PanelStyle.faintHairline)
 		)
 	}
 }
@@ -248,10 +248,10 @@ struct CommandOutputView: View {
 		.padding(.horizontal, 10)
 		.padding(.vertical, 8)
 		.frame(maxWidth: .infinity, alignment: .leading)
-		.background(.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+		.background(PanelStyle.sunken, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 		.overlay(
 			RoundedRectangle(cornerRadius: 8, style: .continuous)
-				.strokeBorder(.white.opacity(0.06))
+				.strokeBorder(PanelStyle.faintHairline)
 		)
 	}
 

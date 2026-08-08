@@ -109,7 +109,7 @@ struct LabelledBlock: View {
 					.padding(8)
 			}
 			.frame(maxHeight: 200)
-			.background(.black.opacity(0.15), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+			.background(PanelStyle.sunken, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
 		}
 		.frame(maxWidth: .infinity, alignment: .leading)
 	}

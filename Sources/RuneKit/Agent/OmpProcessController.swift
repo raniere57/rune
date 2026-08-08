@@ -39,12 +39,19 @@ public enum OmpProcessError: Error, LocalizedError {
 public final class OmpProcessController: @unchecked Sendable {
 	private let logger = Logger(subsystem: AppConfiguration.bundleIdentifier, category: "process")
 	private let lock = NSLock()
+	/// Serial, so JSONL frames reach OMP in the order they were sent.
+	private let writeQueue = DispatchQueue(label: "\(AppConfiguration.bundleIdentifier).omp-stdin")
 
 	private var process: Process?
 	private var stdinPipe: Pipe?
 	private var reader = RpcFrameReader()
 	private var continuation: AsyncStream<OmpProcessEvent>.Continuation?
 	private var stdinClosed = false
+	/// Bumped on every launch. Pipe callbacks for the previous child can still be
+	/// in flight when the next one starts (a mode switch restarts back to back),
+	/// and without this token their bytes would be fed into the new child's
+	/// reader — splicing two JSONL streams together.
+	private var generation = 0
 
 	public init() {}
 
@@ -52,6 +59,19 @@ public final class OmpProcessController: @unchecked Sendable {
 		lock.lock()
 		defer { lock.unlock() }
 		return process?.isRunning ?? false
+	}
+
+	/// True when the slot is free for a new launch.
+	///
+	/// Not the same as `!isRunning`: the OS marks a process dead — and
+	/// `Process.isRunning` flips false — before Foundation delivers the
+	/// termination handler that releases the slot. Measured on this platform,
+	/// that gap reaches ~17 ms under load, which is exactly long enough for a
+	/// programmatic restart (a mode switch) to hit `alreadyRunning`.
+	public var isStopped: Bool {
+		lock.lock()
+		defer { lock.unlock() }
+		return process == nil
 	}
 
 	public var processIdentifier: Int32? {
@@ -109,6 +129,8 @@ public final class OmpProcessController: @unchecked Sendable {
 		self.continuation = continuation
 		self.reader = RpcFrameReader()
 		self.stdinClosed = false
+		self.generation += 1
+		let token = self.generation
 		lock.unlock()
 
 		stdout.fileHandleForReading.readabilityHandler = { [weak self] handle in
@@ -116,9 +138,9 @@ public final class OmpProcessController: @unchecked Sendable {
 			guard let self else { return }
 			if data.isEmpty {
 				handle.readabilityHandler = nil
-				self.drainAtEOF()
+				self.drainAtEOF(generation: token)
 			} else {
-				self.ingestStdout(data)
+				self.ingestStdout(data, generation: token)
 			}
 		}
 
@@ -130,7 +152,7 @@ public final class OmpProcessController: @unchecked Sendable {
 				return
 			}
 			guard let text = String(data: data, encoding: .utf8), !text.isEmpty else { return }
-			self.emit(.stderr(text))
+			self.emit(.stderr(text), generation: token)
 		}
 
 		process.terminationHandler = { [weak self] finished in
@@ -150,7 +172,7 @@ public final class OmpProcessController: @unchecked Sendable {
 		}
 
 		logger.info("omp started, pid \(process.processIdentifier, privacy: .public)")
-		emit(.started(pid: process.processIdentifier))
+		emit(.started(pid: process.processIdentifier), generation: token)
 		return stream
 	}
 
@@ -211,10 +233,19 @@ public final class OmpProcessController: @unchecked Sendable {
 		let handle = stdinPipe.fileHandleForWriting
 		lock.unlock()
 
-		do {
-			try handle.write(contentsOf: payload)
-		} catch {
-			throw OmpProcessError.launchFailed("stdin write failed: \(error.localizedDescription)")
+		// The write is blocking and a pipe buffer is ~64 KB, so a prompt carrying
+		// a base64 image always exceeds it and blocks until OMP drains. Every
+		// send originates on the main actor, so doing that inline froze the UI for
+		// as long as OMP took to read — precisely when it is busy in a long tool.
+		// The serial queue keeps frame order, which JSONL depends on.
+		writeQueue.async { [weak self] in
+			do {
+				try handle.write(contentsOf: payload)
+			} catch {
+				// A failed write on a live pipe means the child is gone, which the
+				// termination handler is already the one to report.
+				self?.logger.error("stdin write failed: \(error.localizedDescription, privacy: .public)")
+			}
 		}
 	}
 
@@ -228,34 +259,42 @@ public final class OmpProcessController: @unchecked Sendable {
 
 	// MARK: - Internals
 
-	private func ingestStdout(_ data: Data) {
+	private func ingestStdout(_ data: Data, generation token: Int) {
 		lock.lock()
+		guard token == generation else {
+			lock.unlock()
+			return
+		}
 		let outputs = reader.feed(data)
 		lock.unlock()
-		forward(outputs)
+		forward(outputs, generation: token)
 	}
 
-	private func drainAtEOF() {
+	private func drainAtEOF(generation token: Int) {
 		lock.lock()
+		guard token == generation else {
+			lock.unlock()
+			return
+		}
 		let outputs = reader.finish()
 		lock.unlock()
-		forward(outputs)
+		forward(outputs, generation: token)
 	}
 
-	private func forward(_ outputs: [RpcFrameReader.Output]) {
+	private func forward(_ outputs: [RpcFrameReader.Output], generation token: Int) {
 		for output in outputs {
 			switch output {
-			case .frame(let frame): emit(.frame(frame))
+			case .frame(let frame): emit(.frame(frame), generation: token)
 			case .failure(let message):
 				logger.error("rpc decode failure: \(message, privacy: .public)")
-				emit(.decodeFailure(message))
+				emit(.decodeFailure(message), generation: token)
 			}
 		}
 	}
 
-	private func emit(_ event: OmpProcessEvent) {
+	private func emit(_ event: OmpProcessEvent, generation token: Int) {
 		lock.lock()
-		let continuation = self.continuation
+		let continuation = token == generation ? self.continuation : nil
 		lock.unlock()
 		continuation?.yield(event)
 	}
@@ -279,6 +318,13 @@ public final class OmpProcessController: @unchecked Sendable {
 		logger.info("omp terminated: \(reason, privacy: .public)")
 
 		lock.lock()
+		// A late handler from a previous child must not tear down the current
+		// one: the handler is delivered asynchronously and a restart can already
+		// have installed a new process by the time it runs.
+		guard self.process === finished else {
+			lock.unlock()
+			return
+		}
 		let continuation = self.continuation
 		self.process = nil
 		self.stdinPipe = nil

@@ -24,6 +24,9 @@ final class FakeOmpTransport: OmpTransport, @unchecked Sendable {
 	var sessionFile = "/tmp/rune-test/session.jsonl"
 	/// Makes `switch_session` answer `success: true` with `cancelled: true`.
 	var cancelsSwitchSession = false
+	/// Makes `abort` answer `success: false`, so the failure path is reachable
+	/// without waiting out a ten-second timeout.
+	var failsAbort = false
 	private(set) var chunkReassemblyLimit: Int?
 	private(set) var stopCount = 0
 	private(set) var thinkingLevel: String?
@@ -170,6 +173,13 @@ final class FakeOmpTransport: OmpTransport, @unchecked Sendable {
 			""")
 
 		case .abort:
+			guard !failsAbort else {
+				emit("""
+				{\(identifier)"type":"response","command":"abort","success":false,\
+				"error":"nothing to abort"}
+				""")
+				return
+			}
 			emit("{\(identifier)\"type\":\"response\",\"command\":\"abort\",\"success\":true}")
 
 		case .newSession:

@@ -7,11 +7,21 @@ import Foundation
 /// process or spending a token. See `FakeOmpTransport` in the test target.
 public protocol OmpTransport: AnyObject, Sendable {
 	var isRunning: Bool { get }
+	/// True once the child is not just dead but fully released, so a new one can
+	/// be launched. Distinct from `!isRunning`, which flips first — see
+	/// `OmpProcessController.isStopped`.
+	var isStopped: Bool { get }
 	func start(workspace: URL, apiKey: String?, mode: AgentMode) throws -> AsyncStream<OmpProcessEvent>
 	func send(_ command: RpcCommand, id: String?) throws
 	func enableChunkReassembly(maxReassembledBytes: Int)
 	func stop()
 	func stopImmediately()
+}
+
+public extension OmpTransport {
+	/// Correct for any transport whose teardown is synchronous — only a real
+	/// child process has a window where it is dead but not yet released.
+	var isStopped: Bool { !isRunning }
 }
 
 /// Production transport: resolves `omp` on disk and drives `OmpProcessController`.
@@ -21,6 +31,8 @@ public final class LiveOmpTransport: OmpTransport {
 	public init() {}
 
 	public var isRunning: Bool { controller.isRunning }
+
+	public var isStopped: Bool { controller.isStopped }
 
 	public var processIdentifier: Int32? { controller.processIdentifier }
 

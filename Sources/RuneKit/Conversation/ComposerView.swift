@@ -187,7 +187,7 @@ struct ComposerButton: View {
 				)
 				.overlay(
 					RoundedRectangle(cornerRadius: ComposerMetrics.buttonCornerRadius, style: .continuous)
-						.strokeBorder(.white.opacity(isHovering && isEnabled ? 0.18 : 0.07))
+						.strokeBorder(PanelStyle.chipStroke(hovering: isHovering && isEnabled))
 				)
 				.scaleEffect(isPressed ? 0.9 : 1)
 		}
@@ -305,8 +305,8 @@ struct StatusChip: View {
 			.foregroundStyle(isHovering ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
 			.padding(.horizontal, 8)
 			.frame(height: ComposerMetrics.controlHeight)
-			.background(.white.opacity(isHovering ? 0.09 : 0.03), in: Capsule())
-			.overlay(Capsule().strokeBorder(.white.opacity(isHovering ? 0.16 : 0.08)))
+			.background(PanelStyle.chipFill(hovering: isHovering), in: Capsule())
+			.overlay(Capsule().strokeBorder(PanelStyle.chipStroke(hovering: isHovering)))
 			.contentShape(Capsule())
 		}
 		.buttonStyle(.plain)
@@ -440,6 +440,14 @@ final class InterceptingTextView: NSTextView {
 	/// like a send. `insertNewlineIgnoringFieldEditor:` is bound to *Option*
 	/// +Return (`~\r`), not Shift — which is why routing it there did nothing.
 	override func keyDown(with event: NSEvent) {
+		// While an input method has marked text — a CJK candidate being composed —
+		// every key belongs to the IME, and Return is how the candidate is
+		// committed. Intercepting it here would insert a line break into the
+		// middle of the composition instead.
+		if hasMarkedText() {
+			super.keyDown(with: event)
+			return
+		}
 		if event.isReturnKey, event.modifierFlags.contains(.shift) {
 			super.insertNewline(self)
 			return

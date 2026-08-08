@@ -30,7 +30,7 @@ public struct ConversationView: View {
 		.clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 		.overlay(
 			RoundedRectangle(cornerRadius: 14, style: .continuous)
-				.strokeBorder(.white.opacity(0.10))
+				.strokeBorder(PanelStyle.hairline)
 		)
 	}
 

@@ -180,7 +180,8 @@ da runa Algiz (ᛉ).
 | Fechar o painel | `Esc` — a tarefa em andamento continua |
 | Nova conversa | `⌘K` (pede confirmação se houver histórico) |
 | Abortar a execução | `⌘.`, ou o botão quadrado vermelho (só aparece durante a execução) |
-| Copiar a última resposta | `⌘C` sem seleção |
+| Copiar a última resposta | `⌘⇧C` |
+| Copiar a seleção | `⌘C` — o normal do sistema, em qualquer parte do painel |
 | Colar | `⌘V` — texto, imagem, arquivo ou pasta |
 | Lista de comandos | digite `/` — `↑↓` navega, `⇥`/`Enter` completa, `Esc` fecha |
 | Alternar Plan / Build | `⇥` com o campo sem lista aberta, ou clique no chip |
@@ -561,7 +562,7 @@ constante.
 swift test
 ```
 
-**144 testes, 18 suítes.** Nenhum gasta token.
+**165 testes, 22 suítes.** Nenhum gasta token.
 
 | Suíte | Cobre |
 |---|---|
@@ -578,7 +579,11 @@ swift test
 | Transcript format (reais) | roda contra os transcritos do `omp` nesta máquina; pula-se onde não há |
 | Conversation restore | restaura sem subir o `omp`, não sobrescreve conversa viva, sessão ausente |
 | Screen and model never diverge | troca de diretório limpa o transcrito, `switch_session` cancelado, sessão divergente |
-| Floating panel | `hidesOnDeactivate` desligado, key status, nível, auto-dispensa, posicionamento |
+| Floating panel | `hidesOnDeactivate` desligado, key status, nível, auto-dispensa, posicionamento, modificadores exatos, `⌘C` livre |
+| Composer key handling | `Shift+Enter` quebra linha, Enter do teclado numérico, `Option+Enter`, Enter puro envia |
+| Run state recovery | abort ocioso, abort que falha, `⌘K` e `/cd` no meio do turno, texto pendente descartado, saída deliberada |
+| Streaming coalescing | deltas viram um turno só, flush no fim do turno, ordem preservada contra tool call |
+| Tool argument clamping | corte na construção, recursão em árvore, string curta intacta |
 | Context across an idle shutdown | o segundo prompt retoma a mesma sessão |
 | OMP integration | contra o binário real |
 
@@ -716,7 +721,7 @@ pagar nada e sem nenhuma caixa-preta no meio. Open source é lindo mesmo.
 ```bash
 git clone https://github.com/raniere57/rune.git && cd rune
 brew install can1357/tap/omp
-swift test          # 144 testes, nenhum gasta token
+swift test          # 165 testes, nenhum gasta token
 ./scripts/build-app.sh release && open build/Rune.app
 ```
 

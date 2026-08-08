@@ -63,12 +63,18 @@ public final class AgentCoordinator {
 	private var readyContinuation: CheckedContinuation<RpcReady, Error>?
 	private var idleTimer: DispatchSourceTimer?
 	private var streamingAssistantId: String?
+	/// Streamed text not yet written into `items` — see `appendAssistant`.
+	private var streamingBuffer = ""
+	private var flushTask: Task<Void, Never>?
 	private var pendingRequestIds: Set<String> = []
 	private var sessionFile: String?
 	/// Bumped on every launch. The previous process's event stream can still be
 	/// draining when the next one boots (a mode switch or `/cd` restarts it), and
 	/// a late `terminated` from the old one would otherwise stop the new one.
 	private var processGeneration = 0
+	/// Set while this app is the one stopping OMP, so the termination handler
+	/// does not report a deliberate restart as a crash.
+	private var expectingShutdown = false
 
 	/// Most recent transcripts on disk, for the conversation picker. Refreshed
 	/// on demand rather than watched: the list is only read when the menu opens.
@@ -120,12 +126,23 @@ public final class AgentCoordinator {
 		await send(prompt: text, attachments: attachments)
 	}
 
+	/// Interrupts the running turn.
+	///
+	/// The `isBusy` guard is load-bearing, not defensive: `⌘.` and `/abort` are
+	/// reachable with nothing running, and OMP emits no `agent_end` for a turn
+	/// that already finished — so `.aborting` would never be cleared. Every
+	/// escape hatch (the idle reaper, mode switching, session switching) refuses
+	/// to run while the state reads busy, so the app would be stuck until the
+	/// next prompt.
 	public func abort() async {
-		guard transport.isRunning else { return }
+		guard transport.isRunning, runState.isBusy else { return }
+		let interrupted = runState
 		runState = .aborting
 		do {
 			_ = try await request(.abort, timeout: .seconds(10))
 		} catch {
+			// The abort never landed, so whatever was running still is.
+			runState = interrupted
 			append(.failure(FailureEntry(text: "Não foi possível abortar.", detail: error.localizedDescription)))
 		}
 	}
@@ -133,8 +150,13 @@ public final class AgentCoordinator {
 	/// `Cmd+K`. Clears the view and asks OMP for a fresh session so context
 	/// does not leak between tasks.
 	public func startNewSession() async {
+		// A live turn keeps streaming into the transcript that is about to be
+		// cleared, and `new_session` mid-run races the session file the old turn
+		// is still writing. Aborting first is also what the user means by ⌘K
+		// during a run — blocking on "wait for it to finish" would be worse.
+		if runState.isBusy { await abort() }
 		items.removeAll()
-		streamingAssistantId = nil
+		discardStreamingText()
 		pendingRequestIds.removeAll()
 		guard transport.isRunning else {
 			sessionFile = nil
@@ -161,6 +183,11 @@ public final class AgentCoordinator {
 			return
 		}
 
+		// Same reason as `startNewSession`: a turn still streaming would repopulate
+		// the transcript this method clears, and closing stdin under a running
+		// tool is not a graceful stop.
+		if runState.isBusy { await abort() }
+
 		workspace = resolved
 		defaults.set(resolved.url.path, forKey: AppConfiguration.DefaultsKey.workspacePath)
 		// A session is bound to the directory it was created in; carrying the
@@ -172,7 +199,7 @@ public final class AgentCoordinator {
 		// starts a fresh session is the worst possible state: the history looks
 		// present and the agent has none of it.
 		items.removeAll()
-		streamingAssistantId = nil
+		discardStreamingText()
 		pendingRequestIds.removeAll()
 
 		if transport.isRunning { await shutdown(reason: "workspace changed") }
@@ -295,7 +322,7 @@ public final class AgentCoordinator {
 		let needsWorkspaceChange = !session.cwd.isEmpty && target != workspace.url
 
 		items.removeAll()
-		streamingAssistantId = nil
+		discardStreamingText()
 		pendingRequestIds.removeAll()
 
 		if needsWorkspaceChange {
@@ -487,6 +514,13 @@ public final class AgentCoordinator {
 			lines.append("Imagens: \(modelSupportsImages ? "suportadas" : "não suportadas pelo modelo")")
 		} else {
 			lines.append("OMP: desligado (inicia no próximo prompt)")
+		}
+		let shortcut = AppConfiguration.defaultGlobalShortcut
+		if GlobalHotKeyController.mayBeShadowedBySystem(shortcut) {
+			lines.append("""
+			Atalho: \(shortcut) pode estar tomado pela troca de fonte de entrada do macOS \
+			(há mais de um teclado ativo) — use o ícone da barra
+			""")
 		}
 		append(.notice(NoticeEntry(level: .info, text: lines.joined(separator: "\n"))))
 	}
@@ -772,7 +806,7 @@ public final class AgentCoordinator {
 			// Loudly, and the transcript goes too: a visible history the model
 			// cannot see is worse than an empty one.
 			items.removeAll()
-			streamingAssistantId = nil
+			discardStreamingText()
 			append(.notice(NoticeEntry(
 				level: .warning,
 				text: "Não foi possível retomar a conversa anterior. Começando uma nova."
@@ -1073,9 +1107,14 @@ public final class AgentCoordinator {
 		idleTimer = nil
 
 		let wasBusy = runState.isBusy
+		let wasDeliberate = expectingShutdown
+		expectingShutdown = false
 		runState = .stopped
 		runningMode = nil
-		guard status != 0 || wasBusy else { return }
+		// `wasBusy` is true for the whole restart window of a mode switch or a
+		// `/cd`, so without the deliberate-shutdown flag a clean exit(0) still
+		// reported a crash.
+		guard !wasDeliberate, status != 0 || wasBusy else { return }
 		lifecycleLog.error("omp exited unexpectedly: \(reason, privacy: .public)")
 		append(.failure(FailureEntry(
 			text: "O OMP encerrou inesperadamente (\(reason)).",
@@ -1125,34 +1164,82 @@ public final class AgentCoordinator {
 	// MARK: - Conversation mutation
 
 	private func append(_ item: ConversationItem) {
+		// Anything appended has to land after text that is still buffered, or the
+		// transcript reorders itself — a tool call would appear above the sentence
+		// that announced it.
+		if case .assistant = item {} else { flushStreamingText() }
 		items.append(item)
 	}
 
+	/// Buffers a streamed delta instead of writing it straight into `items`.
+	///
+	/// Deltas arrive far faster than the panel can usefully redraw. Every one of
+	/// them used to mutate `items`, and each mutation cost two full passes over
+	/// the answer so far: copy-on-write duplicated the accumulated string (the
+	/// enum payload still in the array kept the refcount at two), and the view
+	/// re-parsed the whole thing as markdown. Both are O(n) per delta, so O(n²)
+	/// per answer — a 100 KB answer copied ~100 MB of string bytes on the main
+	/// actor. Coalescing turns that into roughly one mutation per frame.
 	private func appendAssistant(_ text: String) {
 		guard !text.isEmpty else { return }
-		if let id = streamingAssistantId,
-		   let index = items.lastIndex(where: {
-		   	if case .assistant(let turn) = $0 { return turn.id == id }
-		   	return false
-		   }),
-		   case .assistant(var turn) = items[index] {
-			turn.text += text
-			items[index] = .assistant(turn)
+		streamingBuffer += text
+		guard flushTask == nil else { return }
+		flushTask = Task { @MainActor [weak self] in
+			try? await Task.sleep(for: AppConfiguration.streamFlushInterval)
+			guard let self, !Task.isCancelled else { return }
+			self.flushTask = nil
+			self.flushStreamingText()
+		}
+	}
+
+	private func flushStreamingText() {
+		let pending = streamingBuffer
+		streamingBuffer = ""
+		guard !pending.isEmpty else { return }
+
+		guard let index = streamingTurnIndex() else {
+			let turn = AssistantTurn(text: pending)
+			streamingAssistantId = turn.id
+			items.append(.assistant(turn))
 			return
 		}
 
-		let turn = AssistantTurn(text: text)
-		streamingAssistantId = turn.id
-		append(.assistant(turn))
+		// Taking the item out of the array before mutating leaves the extracted
+		// turn as the sole owner of its text storage, so `+=` appends in place
+		// rather than copy-on-writing the whole answer. The streaming turn is
+		// almost always the last element, which makes this O(1).
+		let removed = items.remove(at: index)
+		guard case .assistant(var turn) = removed else {
+			items.insert(removed, at: index)
+			return
+		}
+		turn.text += pending
+		items.insert(.assistant(turn), at: index)
+	}
+
+	private func streamingTurnIndex() -> Int? {
+		guard let id = streamingAssistantId else { return nil }
+		return items.lastIndex {
+			if case .assistant(let turn) = $0 { return turn.id == id }
+			return false
+		}
+	}
+
+	/// Drops buffered text without rendering it. Used when the transcript itself
+	/// is going away, so a pending flush cannot repopulate a cleared view.
+	private func discardStreamingText() {
+		flushTask?.cancel()
+		flushTask = nil
+		streamingBuffer = ""
+		streamingAssistantId = nil
 	}
 
 	private func finishStreaming() {
+		flushTask?.cancel()
+		flushTask = nil
+		flushStreamingText()
 		defer { streamingAssistantId = nil }
-		guard let id = streamingAssistantId,
-		      let index = items.lastIndex(where: {
-		      	if case .assistant(let turn) = $0 { return turn.id == id }
-		      	return false
-		      }),
+		guard let index = streamingTurnIndex(),
 		      case .assistant(var turn) = items[index]
 		else { return }
 		turn.isStreaming = false
@@ -1209,13 +1296,17 @@ public final class AgentCoordinator {
 		await refreshState()
 		idleTimer?.cancel()
 		idleTimer = nil
+		expectingShutdown = true
 		transport.stop()
 
-		// Wait for the child to actually exit before returning: the process
-		// controller refuses to start a second one while the first is alive, so
-		// a restart that did not wait would fail with `alreadyRunning`.
+		// Wait for the child to be fully torn down before returning: the process
+		// controller refuses to start a second one until the previous slot is
+		// released, so a restart that did not wait would fail with
+		// `alreadyRunning`. Waiting on `isRunning` was not enough — the OS marks
+		// the process dead up to ~17 ms before the termination handler runs and
+		// clears the slot, and a mode switch restarts inside that window.
 		let deadline = Date().addingTimeInterval(AppConfiguration.terminationGraceSeconds + 2)
-		while transport.isRunning, Date() < deadline {
+		while !transport.isStopped, Date() < deadline {
 			try? await Task.sleep(for: .milliseconds(25))
 		}
 
