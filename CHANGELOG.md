@@ -8,6 +8,19 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
 
 ## [Não publicado]
 
+### Documentação
+
+- **A RAM ociosa está medida errada no README desde sempre — corrigida para
+  22 MB.** Os números anteriores (54 MB, depois 29 MB) vinham de leituras de `ps`
+  em momentos diferentes da estabilização, e nenhuma das duas media a coisa
+  certa: o RSS inclui as páginas limpas e compartilhadas de AppKit, SwiftUI e
+  Foundation, que todo app nativo mapeia e nenhum paga sozinho. O valor honesto é
+  o *physical footprint* — o que o Monitor de Atividade mostra —, obtido com
+  `vmmap --summary`. Ele é **22 MB**; o RSS do mesmo processo é 93 MB.
+
+  Com o mesmo método, no mesmo boot, a 0.8.1 mede 22,0 MB e a 0.11.0 mede
+  22,2 MB: as três levas de auditoria custaram 0,2 MB somadas.
+
 ## [0.11.0] — 2026-08-08
 
 Terceira e última leva da auditoria: capacidades. Continua sem timer, sem

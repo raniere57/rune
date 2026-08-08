@@ -36,7 +36,7 @@ nenhuma delas:
 
 | | |
 |---|---|
-| 🪟 **A interface do macOS** | `NSStatusItem` + `NSPanel` + SwiftUI. Sem Electron, sem WebView, sem servidor local. O app inteiro tem 2,7 MB e não aparece no Dock. |
+| 🪟 **A interface do macOS** | `NSStatusItem` + `NSPanel` + SwiftUI. Sem Electron, sem WebView, sem servidor local. O app inteiro tem 3,0 MB e não aparece no Dock. |
 | 🧠 **[Oh My Pi](https://github.com/can1357/oh-my-pi)** | O agente de verdade: ferramentas, sessões, shell, Git, edição por hash, LSP, subagentes, memória, compactação. Rune não reimplementa nada disso. |
 | 💸 **[OpenCode Zen](https://opencode.ai)** | O provedor. `deepseek-v4-flash-free` para texto e `mimo-v2.5-free` para imagens: **zero por token** nos dois, 200K de contexto, effort `max`, sem cartão. |
 
@@ -616,33 +616,50 @@ RUNE_LIVE_MODEL_TEST=1 swift test --filter "real model turn"
 
 ## Medições
 
-Medido em macOS 26.5.2, Apple Silicon, com `ps`, `time` e `hdiutil`.
+Medido em macOS 26.5.2, Apple Silicon, com `vmmap`, `ps`, `time` e `hdiutil`.
 Metodologia: cada número vem do processo real; nada é estimado.
 
 | Métrica | Medido | Meta |
 |---|---|---|
 | Lançamento do app | **154 ms** | — |
 | Abertura do painel | instantânea — construído no launch, depois só ordenado à frente | visualmente instantânea |
-| RAM: app ocioso, `omp` desligado | **29 MB** (42 MB no pico, assenta em ~15 s) | < 50 MB ✅ |
+| RAM: app ocioso, `omp` desligado | **22 MB** de *physical footprint* (93 MB de RSS) | < 50 MB ✅ |
 | RAM: `omp` iniciado e ocioso | **241 MB** (`omp`) + 15 MB (servidor MCP do usuário) | — |
 | RAM durante tarefa | **não medido** — exigiria um turno faturado | — |
-| CPU ocioso | **0,0 %** — 0,55 s de CPU acumulada em 71 s de vida | ~0 % |
+| CPU ocioso | **0,0 %** | ~0 % |
 | Inicialização do `omp` (até `ready`) | **1,41 s** | — |
 | Encerramento gracioso (EOF no stdin) | **0,13 s**, código 0 | — |
 | Órfãos após sair do app | **nenhum** | nenhum |
 | Órfãos após `kill -9` no app | **nenhum** — o `omp` vê EOF e sai sozinho | nenhum |
-| Tamanho do `.app` | 2,7 MB | — |
-| Tamanho do `.dmg` | 1.7 MB | — |
+| Tamanho do `.app` | 3,0 MB | — |
+| Tamanho do `.dmg` | 2,4 MB | — |
 
-> Uma medição anterior registrou 54 MB ociosos e ficou no README por duas
-> versões. Estava errada: foi lida antes de o app assentar. Vale como lembrete
-> de esperar a estabilização antes de anotar o número.
+### Sobre o número de RAM
+
+Há duas medidas e elas divergem por um fator de quatro, então vale dizer qual é
+qual:
+
+- **Physical footprint (22 MB)** é o que o Monitor de Atividade mostra na coluna
+  "Memória" e o que o kernel cobra do app. É o número honesto.
+- **RSS (93 MB)** inclui as páginas limpas e compartilhadas de AppKit, SwiftUI e
+  Foundation, que todo app nativo mapeia e nenhum app paga sozinho. Ler o RSS e
+  chamar de "consumo do app" superestima em ~70 MB.
+
+> Este README já errou este número duas vezes: primeiro 54 MB, depois 29 MB. Os
+> dois vinham de leituras de `ps` em momentos diferentes da estabilização, e
+> nenhum media a coisa certa. O valor correto vem de
+> `vmmap --summary <pid> | grep "Physical footprint"`.
+
+As três levas de auditoria (0.9.0, 0.10.0, 0.11.0) foram medidas contra a 0.8.1
+com o mesmo método, no mesmo boot: **22,0 MB → 22,2 MB**. Correções de bug,
+botão de copiar, marca no ícone, arrastar e soltar, notificações e fallback de
+modelo custaram 0,2 MB somados.
 
 Reproduzir:
 
 ```bash
-# RAM e CPU do app
-ps -Ao pid,rss,pcpu,comm | grep Rune
+# RAM real do app (o que o Monitor de Atividade mostra)
+vmmap --summary $(pgrep -f "Rune.app/Contents/MacOS/Rune") | grep "Physical footprint"
 
 # árvore do omp
 pgrep -f "omp --mode rpc-ui" | xargs ps -o pid,rss,pcpu -p
@@ -722,7 +739,7 @@ Rune só existe porque outras pessoas publicaram trabalho bom de graça:
   contexto que custa zero.
 - **DeepSeek** — o modelo.
 
-Um app nativo de 2,7 MB, um runtime de agente completo e um modelo capaz, sem
+Um app nativo de 3,0 MB, um runtime de agente completo e um modelo capaz, sem
 pagar nada e sem nenhuma caixa-preta no meio. Open source é lindo mesmo.
 
 ## Contribuindo
