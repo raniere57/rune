@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
 
+# Explicit, not inherited: the repository default is read-only today, but a
+# settings change would silently hand this workflow a write token it has no
+# use for. `release.yml` asks for `contents: write` where it is actually needed.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
