@@ -8,6 +8,26 @@ O corpo da seção de cada versão é publicado como nota da release no GitHub �
 
 ## [Não publicado]
 
+## [0.11.2] — 2026-08-08
+
+### Corrigido
+
+- **A rolagem voltava a "grudar" no fim em conversas longas.**
+
+  A âncora que mede a distância até o fim do transcript vive dentro de um
+  `LazyVStack`. Rolando o suficiente para cima, ela é descartada — nenhum filho
+  publica a medida, e o valor padrão da `PreferenceKey` era `0`, que lê como
+  "parado no fim". O resultado: o próximo trecho de texto puxava a visão de
+  volta, exatamente o comportamento que a 0.11.0 tinha eliminado, e justamente
+  no caso longo em que rolar para trás importa. O padrão agora é "infinitamente
+  longe", então uma âncora ausente nunca conta como grudado.
+
+- **Uma queda do `omp` no meio do turno era anunciada como "Tarefa concluída".**
+
+  `handleTermination` marca o estado como `.stopped`, não `.failed`, então a
+  notificação caía no texto genérico de sucesso e reportava uma falha como
+  trabalho terminado. `.stopped` agora tem texto próprio: "Interrompido em X".
+
 ## [0.11.1] — 2026-08-08
 
 ### Corrigido

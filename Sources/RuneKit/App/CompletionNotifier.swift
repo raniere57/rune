@@ -40,16 +40,23 @@ public enum CompletionNotifier {
 		}
 	}
 
+	/// The banner text for a run that just stopped being busy.
+	///
+	/// `.stopped` needs its own arm: `handleTermination` uses it when the child
+	/// dies mid-turn, so the generic "concluída" reported a crash as a success.
+	nonisolated static func body(for state: AgentRunState, workspaceName: String) -> String {
+		switch state {
+		case .failed(let message): "Falhou em \(workspaceName): \(message)"
+		case .stopped: "Interrompido em \(workspaceName)."
+		default: "Tarefa concluída em \(workspaceName)."
+		}
+	}
+
 	public static func notifyFinished(state: AgentRunState, workspaceName: String) {
 		guard isAvailable else { return }
 		let content = UNMutableNotificationContent()
 		content.title = AppConfiguration.appName
-		switch state {
-		case .failed(let message):
-			content.body = "Falhou em \(workspaceName): \(message)"
-		default:
-			content.body = "Tarefa concluída em \(workspaceName)."
-		}
+		content.body = body(for: state, workspaceName: workspaceName)
 		content.sound = .default
 
 		// `trigger: nil` delivers immediately. The identifier is stable so a

@@ -81,7 +81,7 @@ public struct ConversationView: View {
 			.coordinateSpace(name: Self.scrollSpace)
 			.frame(maxHeight: AppConfiguration.historyMaxHeight)
 			.onPreferenceChange(DistanceFromBottom.self) { distance in
-				isPinnedToBottom = distance <= Self.pinThreshold
+				isPinnedToBottom = Self.isPinned(distanceFromBottom: distance)
 			}
 			.onChange(of: coordinator.items.count) {
 				// A new item always follows: the user asked for it, or the agent
@@ -254,12 +254,23 @@ public struct ConversationView: View {
 	/// Slack allowed before the view is considered "scrolled away". A couple of
 	/// lines, so a rubber-band overshoot or a rounding difference does not stop
 	/// the stream from following.
-	private static let pinThreshold: CGFloat = 40
+	private nonisolated static let pinThreshold: CGFloat = 40
+
+	/// Whether the stream should keep following the end of the transcript.
+	nonisolated static func isPinned(distanceFromBottom: CGFloat) -> Bool {
+		distanceFromBottom <= pinThreshold
+	}
 }
 
 /// Distance between the end of the transcript and the bottom of the viewport.
-private struct DistanceFromBottom: PreferenceKey {
-	static let defaultValue: CGFloat = 0
+struct DistanceFromBottom: PreferenceKey {
+	/// Deliberately "infinitely far", not zero. The anchor lives inside a
+	/// `LazyVStack`, so scrolling far enough up discards it: no child supplies
+	/// the preference and this default is what `onPreferenceChange` receives.
+	/// A zero read as "resting at the bottom" and re-pinned the view, which is
+	/// the very yanking 0.10.0 set out to stop — and only in long transcripts,
+	/// where scrolling back actually matters.
+	static let defaultValue: CGFloat = .greatestFiniteMagnitude
 
 	static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
 		value = nextValue()

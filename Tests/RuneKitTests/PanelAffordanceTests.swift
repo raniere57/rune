@@ -136,6 +136,7 @@ struct StatusItemCompletionTests {
 	}
 }
 
+@MainActor
 @Suite("Context gauge thresholds")
 struct ContextGaugeTests {
 	@Test("the gauge stays hidden until the context is worth worrying about")
@@ -217,5 +218,42 @@ struct APIKeyCacheTests {
 		try await coordinator.ensureRunning()
 
 		#expect(coordinator.runState == .ready)
+	}
+}
+
+@MainActor
+@Suite("Auto-scroll pinning")
+struct AutoScrollPinningTests {
+	@Test("an anchor that never reported is not treated as being at the bottom")
+	func missingAnchorDoesNotPin() {
+		// The 1pt anchor lives in a `LazyVStack`: scroll far enough up and it is
+		// discarded, so no child supplies the preference and `onPreferenceChange`
+		// fires with the default. A default that reads as "pinned" resurrects the
+		// bug 0.10.0 fixed, in exactly the long-transcript case that needs it.
+		#expect(!ConversationView.isPinned(distanceFromBottom: DistanceFromBottom.defaultValue))
+	}
+
+	@Test("resting at the bottom stays pinned, scrolling away does not")
+	func thresholdBehaviour() {
+		#expect(ConversationView.isPinned(distanceFromBottom: 0))
+		#expect(ConversationView.isPinned(distanceFromBottom: 12))
+		#expect(!ConversationView.isPinned(distanceFromBottom: 400))
+	}
+}
+
+@Suite("Completion notification wording")
+struct CompletionWordingTests {
+	@Test("a crash mid-turn is not announced as a completed task")
+	func stoppedIsNotSuccess() {
+		// `handleTermination` sets `.stopped`, not `.failed`, so the default arm
+		// reported a dead child as a finished job.
+		let body = CompletionNotifier.body(for: .stopped, workspaceName: "rune")
+		#expect(!body.contains("concluída"))
+	}
+
+	@Test("a real finish and a failure keep their own wording")
+	func otherStatesUnchanged() {
+		#expect(CompletionNotifier.body(for: .ready, workspaceName: "rune").contains("concluída"))
+		#expect(CompletionNotifier.body(for: .failed("boom"), workspaceName: "rune").contains("boom"))
 	}
 }
